@@ -1,0 +1,123 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model ProjectInquiry {
+  id                    String            @id @default(uuid())
+  trackingCode          String            @unique
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  
+  // Step 1: Contact
+  fullName              String
+  company               String?
+  phone                 String
+  email                 String
+  preferredContact      String            @default("phone")
+  
+  // Step 2: Problem
+  fieldDomain           String
+  problemDescription    String
+  currentProcess        String?
+  targetUsers           String?
+  desiredOutcome        String?
+  
+  // Step 3: Tech & Constraints
+  currentSystemStatus   String
+  requiredIntegrations  String?
+  timeline              String
+  budgetRange           String
+  constraints           String?
+  
+  // Step 4: Security & Privacy
+  privacyAgreed         Boolean           @default(true)
+  leadSource            String?
+  userIp                String?
+  
+  // Admin fields
+  status                String            @default("NEW") // NEW, IN_REVIEW, CONTACTED, ARCHIVED
+  internalNotes         String?
+  assignedTo            String?
+  
+  auditLogs             InquiryAuditLog[]
+}
+
+model InquiryAuditLog {
+  id          String         @id @default(uuid())
+  inquiryId   String
+  inquiry     ProjectInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  action      String
+  notes       String?
+  actor       String         @default("سامانه")
+  createdAt   DateTime       @default(now())
+}
+
+model Product {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  title            String
+  tagline          String
+  description      String
+  valueProposition String
+  status           String   @default("published") // published, under_development, draft
+  deliveryModel    String   // SaaS, On-Premise, Hybrid
+  featuresJson     String   // JSON string
+  userRolesJson    String   // JSON string
+  workflowJson     String   // JSON string
+  faqJson          String   // JSON string
+  isPublic         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Solution {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  title            String
+  subtitle         String
+  problemStatement String
+  beforeAfterJson  String   // JSON string
+  capabilitiesJson String   // JSON string
+  userRolesJson    String   // JSON string
+  workflowJson     String   // JSON string
+  securityJson     String   // JSON string
+  integrationsJson String   // JSON string
+  faqJson          String   // JSON string
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Project {
+  id           String   @id @default(uuid())
+  slug         String   @unique
+  title        String
+  clientName   String
+  domain       String
+  summary      String
+  resultsJson  String   // JSON string
+  featuresJson String   // JSON string
+  status       String   @default("COMPLETED")
+  coverImage   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Article {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  category    String
+  author      String
+  readTime    String
+  publishedAt DateTime @default(now())
+  excerpt     String
+  content     String
+  tagsJson    String   // JSON string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

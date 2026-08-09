@@ -1,0 +1,168 @@
+import { fetchProducts, fetchSolutions, fetchArticles, fetchProjects, getHeroData as getHeroDataFromAPI } from './api';
+
+export async function getHeroData() {
+  try {
+    const data = await getHeroDataFromAPI();
+    return data;
+  } catch (error) {
+    console.error('Error fetching hero data from Django:', error);
+    return null;
+  }
+}
+
+export async function getProducts(includeDraft = false) {
+  try {
+    const products = await fetchProducts();
+    return products.map((p: any) => ({
+      id: p.slug || p.id,
+      title: p.name,
+      slug: p.slug,
+      category: p.category,
+      status: p.status,
+      summary: p.description || p.short_description,
+      features: ['معماری میکروسرویس', 'انطباق با قوانین امنیتی', 'پشتیبانی SLA ۲۴/۷'],
+      userRoles: ['مدیران ارشد', 'کارشناسان فنی'],
+      workflow: [],
+      faq: []
+    }));
+  } catch (error) {
+    console.error('Error fetching products from Django:', error);
+    return [];
+  }
+}
+
+export async function getProductBySlug(slug: string) {
+  const products = await getProducts();
+  return products.find((p: any) => p.slug === slug) || products[0] || null;
+}
+
+export async function getSolutions() {
+  try {
+    const solutions = await fetchSolutions();
+    return solutions.map((s: any) => ({
+      id: s.slug || s.id,
+      title: s.title,
+      slug: s.slug,
+      summary: s.description,
+      capabilities: [],
+      faq: []
+    }));
+  } catch (error) {
+    console.error('Error fetching solutions from Django:', error);
+    return [];
+  }
+}
+
+export async function getSolutionBySlug(slug: string) {
+  const solutions = await getSolutions();
+  return solutions.find((s: any) => s.slug === slug) || solutions[0] || null;
+}
+
+export async function getProjects() {
+  try {
+    const projects = await fetchProjects();
+    return (projects || []).map((p: any) => ({
+      id: p.id,
+      slug: p.slug || `project-${p.id}`,
+      title: p.title,
+      clientName: p.client_display || p.client_name_display || p.organization || 'دانشگاه‌ها و سازمان‌های بزرگ کشور',
+      domain: p.category || 'پلتفرم سازمانی',
+      summary: p.summary || p.description || 'توسعه و استقرار پلتفرم اختصاصی سازمانی با پایداری ۹۹.۹٪.',
+      fullDescription: p.full_description || '',
+      metaTitle: p.meta_title || '',
+      metaDescription: p.meta_description || '',
+      results: p.features || ['استقرار میکروسرویس‌های بومی', 'کاهش ۳۵٪ توقف‌های کاری', 'پشتیبانی ۲۴/۷ SLA'],
+      progress: p.progress || 100,
+      activePhase: p.active_phase || p.phase || 'در حال بهره‌برداری',
+      status: 'در حال بهره‌برداری'
+    }));
+  } catch (error) {
+    console.error('Error fetching projects from Django:', error);
+    return [];
+  }
+}
+
+export async function getArticles() {
+  try {
+    const articles = await fetchArticles();
+    return (articles || []).map((a: any) => ({
+      id: a.slug || a.id,
+      title: a.title,
+      slug: a.slug,
+      summary: a.summary,
+      content: a.content || '',
+      author: a.author || 'دپارتمان مهندسی ANPK',
+      date: a.created_at || '',
+      readTime: a.read_time || '۵ دقیقه',
+      category: a.category_name || 'عمومی',
+      category_id: a.category_id || null,
+      tags: Array.isArray(a.tags) ? a.tags : (a.tags ? a.tags.split(',') : []),
+      thumbnail: a.thumbnail || null,
+      cover_image: a.cover_image || null,
+      og_image: a.og_image || null,
+      views_count: a.views_count || 0,
+      status: a.status || 'PUBLISHED',
+      is_featured: a.is_featured || false,
+      language: a.language || 'fa',
+      allow_comments: a.allow_comments !== false,
+      table_of_contents: a.table_of_contents !== false,
+      meta_title: a.meta_title || '',
+      meta_description: a.meta_description || '',
+      canonical_url: a.canonical_url || '',
+      og_title: a.og_title || '',
+      og_description: a.og_description || '',
+      schema_type: a.schema_type || 'Article',
+    }));
+  } catch (error) {
+    console.error('Error fetching articles from Django:', error);
+    return [];
+  }
+}
+
+import { fetchArticleBySlug } from './api';
+
+export async function getArticleBySlug(slug: string) {
+  try {
+    const article = await fetchArticleBySlug(slug);
+    if (article && !article.error) {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+      const resolveMedia = (url: string | null) => {
+        if (!url) return null;
+        return url.startsWith('http') ? url : `${API_BASE}${url}`;
+      };
+      return {
+        id: article.slug || article.id,
+        title: article.title,
+        slug: article.slug,
+        category: article.category_name || article.category || 'عمومی',
+        category_id: article.category_id || null,
+        author: article.author || 'دپارتمان مهندسی ANPK',
+        summary: article.summary,
+        content: article.content,
+        date: article.created_at || '',
+        readTime: article.read_time || '۵ دقیقه',
+        views_count: article.views_count || 0,
+        tags: Array.isArray(article.tags) ? article.tags : (article.tags ? article.tags.split(',') : []),
+        thumbnail: resolveMedia(article.thumbnail),
+        cover_image: resolveMedia(article.cover_image),
+        og_image: resolveMedia(article.og_image),
+        is_featured: article.is_featured || false,
+        status: article.status || 'PUBLISHED',
+        language: article.language || 'fa',
+        allow_comments: article.allow_comments !== false,
+        table_of_contents: article.table_of_contents !== false,
+        meta_title: article.meta_title || article.title,
+        meta_description: article.meta_description || article.summary,
+        canonical_url: article.canonical_url || '',
+        og_title: article.og_title || article.title,
+        og_description: article.og_description || article.summary,
+        schema_type: article.schema_type || 'Article',
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching article detail:', error);
+  }
+
+  const articles = await getArticles();
+  return articles.find((a: any) => a.slug === slug) || articles[0] || null;
+}

@@ -1,0 +1,230 @@
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAdminUser
+from rest_framework.response import Response
+from portal.models import ClientOrganization, PricingPlan, ClientSubscription, Invoice, Payment, Wallet, WalletTransaction, InvoiceItem
+import uuid
+
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAdminUser])
+def admin_pricing_plans(request):
+    """
+    API for managing SaaS / Support Pricing Plans
+    """
+    if request.method == 'POST':
+        action = request.data.get('action')
+        if action == 'toggle_active':
+            plan = PricingPlan.objects.get(id=request.data.get('id'))
+            plan.is_active = not plan.is_active
+            plan.save()
+            return Response({'message': f'وضعیت پلن {plan.name} تغییر یافت.'})
+
+        plan_id = request.data.get('id')
+        name = request.data.get('name')
+        monthly_price = int(request.data.get('monthly_price', 0))
+        yearly_price = int(request.data.get('yearly_price', 0))
+        features_list = request.data.get('features_list', '')
+
+        if plan_id:
+            plan = PricingPlan.objects.get(id=plan_id)
+            plan.name = name
+            plan.monthly_price = monthly_price
+            plan.yearly_price = yearly_price
+            plan.features_list = features_list
+            plan.save()
+            return Response({'message': 'پلن قیمتی بروزرسانی شد.'})
+        else:
+            PricingPlan.objects.create(
+                name=name,
+                monthly_price=monthly_price,
+                yearly_price=yearly_price,
+                features_list=features_list
+            )
+            return Response({'message': 'پلن جدید با موفقیت اضافه شد.'})
+
+    if request.method == 'DELETE':
+        PricingPlan.objects.filter(id=request.data.get('id')).delete()
+        return Response({'message': 'پلن با موفقیت حذف شد.'})
+
+    plans = PricingPlan.objects.all().order_by('-created_at')
+    data = [{
+        'id': p.id,
+        'name': p.name,
+        'monthly_price': p.monthly_price,
+        'yearly_price': p.yearly_price,
+        'features_list': p.features_list,
+        'is_active': p.is_active,
+    } for p in plans]
+    return Response(data)
+
+
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAdminUser])
+def admin_subscriptions(request):
+    """
+    API for Managing Client Subscriptions
+    """
+    if request.method == 'POST':
+        action = request.data.get('action')
+        if action == 'toggle_active':
+            sub = ClientSubscription.objects.get(id=request.data.get('id'))
+            sub.is_active = not sub.is_active
+            sub.save()
+            return Response({'message': f'وضعیت اشتراک {sub.client.name} تغییر یافت.'})
+
+        client_id = request.data.get('client_id')
+        plan_id = request.data.get('plan_id')
+        start_date = request.data.get('start_date')
+        end_date = request.data.get('end_date')
+        auto_renew = request.data.get('auto_renew', False)
+
+        ClientSubscription.objects.create(
+            client_id=client_id,
+            plan_id=plan_id,
+            start_date=start_date,
+            end_date=end_date,
+            auto_renew=auto_renew
+        )
+        return Response({'message': 'اشتراک جدید با موفقیت ثبت شد.'})
+
+    if request.method == 'DELETE':
+        ClientSubscription.objects.filter(id=request.data.get('id')).delete()
+        return Response({'message': 'اشتراک با موفقیت حذف شد.'})
+
+    subs = ClientSubscription.objects.select_related('client', 'plan').all().order_by('-start_date')
+    data = [{
+        'id': s.id,
+        'client_name': s.client.name,
+        'plan_name': s.plan.name if s.plan else 'نامشخص',
+        'start_date': s.start_date.strftime('%Y-%m-%d'),
+        'end_date': s.end_date.strftime('%Y-%m-%d'),
+        'auto_renew': s.auto_renew,
+        'is_active': s.is_active,
+    } for s in subs]
+    
+    # Also return clients and plans for the form dropdowns
+    clients = [{'id': c.id, 'name': c.name} for c in ClientOrganization.objects.all()]
+    plans = [{'id': p.id, 'name': p.name} for p in PricingPlan.objects.filter(is_active=True)]
+    
+    return Response({'subscriptions': data, 'clients': clients, 'plans': plans})
+
+
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAdminUser])
+def admin_invoices(request):
+    """
+    API for Generating and Managing Multi-Item Invoices
+    """
+    if request.method == 'POST':
+        action = request.data.get('action')
+        
+        if action == 'mark_paid':
+            invoice = Invoice.objects.get(id=request.data.get('id'))
+            payment_method = request.data.get('payment_method', 'کارت / حواله بانکی')
+            
+            if invoice.status != 'paid':
+                # Handle wallet deduction
+                if payment_method == 'کیف پول':
+                    wallet, _ = Wallet.objects.get_or_create(client=invoice.client)
+                    if wallet.balance < invoice.total_amount:
+                        return Response({'error': 'موجودی کیف پول برای پرداخت این فاکتور کافی نیست.'}, status=400)
+                    wallet.balance -= invoice.total_amount
+                    wallet.save()
+                    WalletTransaction.objects.create(wallet=wallet, transaction_type='withdrawal', amount=invoice.total_amount, description=f'کسر بابت فاکتور {invoice.invoice_number}')
+                
+                # Handle wallet recharge
+                elif invoice.invoice_type == 'wallet_recharge':
+                    wallet, _ = Wallet.objects.get_or_create(client=invoice.client)
+                    wallet.balance += invoice.total_amount
+                    wallet.save()
+                    WalletTransaction.objects.create(wallet=wallet, transaction_type='deposit', amount=invoice.total_amount, description=f'شارژ حساب با فاکتور {invoice.invoice_number}')
+                    
+                invoice.status = 'paid'
+                invoice.save()
+                Payment.objects.create(
+                    invoice=invoice,
+                    amount=invoice.total_amount,
+                    payment_method=payment_method,
+                    reference_id='ADMIN_APPROVE'
+                )
+                return Response({'message': f'فاکتور {invoice.invoice_number} با موفقیت پرداخت شد.'})
+            return Response({'message': 'این فاکتور قبلاً پرداخت شده است.'})
+            
+        if action == 'cancel':
+            invoice = Invoice.objects.get(id=request.data.get('id'))
+            invoice.status = 'cancelled'
+            invoice.save()
+            return Response({'message': 'فاکتور لغو گردید.'})
+
+        client_id = request.data.get('client_id')
+        sub_id = request.data.get('subscription_id')
+        tax_amount = int(request.data.get('tax_amount', 0))
+        due_date = request.data.get('due_date')
+        invoice_type = request.data.get('invoice_type', 'custom')
+        description = request.data.get('description', '')
+        items = request.data.get('items', [])
+        discount_amount = int(request.data.get('discount_amount', 0))
+        
+        if not items:
+            return Response({'error': 'فاکتور باید حداقل دارای یک ردیف کالا/خدمات باشد.'}, status=400)
+            
+        # Calculate totals from items
+        amount = sum(int(item.get('unit_price', 0)) * int(item.get('quantity', 1)) for item in items)
+        
+        import uuid
+        invoice_number = f"INV-{uuid.uuid4().hex[:8].upper()}"
+
+        invoice = Invoice.objects.create(
+            client_id=client_id,
+            subscription_id=sub_id if sub_id else None,
+            invoice_type=invoice_type,
+            description=description,
+            invoice_number=invoice_number,
+            amount=amount,
+            discount_amount=discount_amount,
+            tax_amount=tax_amount,
+            total_amount=max(0, amount - discount_amount + tax_amount),
+            due_date=due_date
+        )
+        
+        # Create items
+        for item in items:
+            InvoiceItem.objects.create(
+                invoice=invoice,
+                title=item.get('title'),
+                quantity=int(item.get('quantity', 1)),
+                unit_price=int(item.get('unit_price', 0))
+            )
+            
+        return Response({'message': f'فاکتور چند ردیفه {invoice_number} صادر شد.'})
+
+    if request.method == 'DELETE':
+        Invoice.objects.filter(id=request.data.get('id')).delete()
+        return Response({'message': 'فاکتور و تمامی آیتم‌های آن حذف شد.'})
+
+    invoices = Invoice.objects.select_related('client', 'subscription').prefetch_related('items').all().order_by('-created_at')
+    data = [{
+        'id': i.id,
+        'client_name': i.client.name,
+        'invoice_number': i.invoice_number,
+        'invoice_type': i.invoice_type,
+        'description': i.description,
+        'amount': i.amount,
+        'discount_amount': getattr(i, 'discount_amount', 0),
+        'tax_amount': i.tax_amount,
+        'total_amount': i.total_amount,
+        'status': i.status,
+        'due_date': i.due_date.strftime('%Y-%m-%d'),
+        'created_at': i.created_at.strftime('%Y/%m/%d - %H:%M'),
+        'subscription_desc': f"بابت {i.subscription.plan.name}" if i.subscription and i.subscription.plan else (i.description if i.description else 'خدمات متفرقه'),
+        'items': [{
+            'title': item.title,
+            'quantity': item.quantity,
+            'unit_price': item.unit_price,
+            'total_price': item.total_price
+        } for item in i.items.all()]
+    } for i in invoices]
+    
+    clients = [{'id': c.id, 'name': c.name} for c in ClientOrganization.objects.all()]
+    subs = [{'id': s.id, 'label': f"{s.client.name} - {s.plan.name if s.plan else 'بدون پلن'}"} for s in ClientSubscription.objects.select_related('client', 'plan').filter(is_active=True)]
+
+    return Response({'invoices': data, 'clients': clients, 'subscriptions': subs})
