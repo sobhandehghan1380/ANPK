@@ -185,7 +185,7 @@ def admin_subscriptions(request):
         'support_cost': p.support_cost,
         'trial_days': p.trial_days,
         'min_months': p.min_months,
-    } for p in PricingPlan.objects.filter(is_active=True)]
+    } for p in PricingPlan.objects.filter(status='active')]
     
     return Response({'subscriptions': data, 'clients': clients, 'plans': plans})
 
@@ -307,6 +307,6 @@ def admin_invoices(request):
     } for i in invoices]
     
     clients = [{'id': c.id, 'name': c.name} for c in ClientOrganization.objects.all()]
-    subs = [{'id': s.id, 'label': f"{s.client.name} - {s.plan.name if s.plan else 'بدون پلن'}"} for s in ClientSubscription.objects.select_related('client', 'plan').filter(is_active=True)]
+    subs = [{'id': s.id, 'label': f"{s.client.name} - {s.plan.name if s.plan else 'بدون پلن'}"} for s in ClientSubscription.objects.select_related('client', 'plan').filter(status='active')]
 
     return Response({'invoices': data, 'clients': clients, 'subscriptions': subs})
