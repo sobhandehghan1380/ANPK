@@ -46,8 +46,8 @@ export default function AdminClientsPage() {
     setLoading(true);
     try {
       const [cList, uList] = await Promise.all([
-        adminFetch(`${API_BASE}/api/portal/admin/clients/`),
-        adminFetch(`${API_BASE}/api/portal/admin/users/`),
+        adminFetch(`${API_BASE}/api/admin/clients/`),
+        adminFetch(`${API_BASE}/api/admin/users/`),
       ]);
       setClients(cList || []);
       setUsers(uList || []);
@@ -111,7 +111,7 @@ export default function AdminClientsPage() {
         body.initial_balance = initialBalance;
       }
 
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/clients/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/clients/`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -135,7 +135,7 @@ export default function AdminClientsPage() {
   const handleDeleteClient = async (id: number) => {
     if (!confirm('آیا از حذف این سازمان و تمام اطلاعات مرتبط اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/clients/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/clients/?id=${id}`, { method: 'DELETE' });
       showMsg('success', 'سازمان حذف شد.');
       loadData();
     } catch (err: any) {

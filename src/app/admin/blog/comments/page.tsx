@@ -29,8 +29,8 @@ export default function AdminCommentsPage() {
     setLoading(true);
     try {
       const url = statusFilter 
-        ? `${API_BASE}/api/portal/admin/comments/?status=${statusFilter}`
-        : `${API_BASE}/api/portal/admin/comments/`;
+        ? `${API_BASE}/api/admin/comments/?status=${statusFilter}`
+        : `${API_BASE}/api/admin/comments/`;
       const res = await adminFetch(url);
       setComments(res?.comments || []);
       setPendingCount(res?.pending_count || 0);
@@ -52,7 +52,7 @@ export default function AdminCommentsPage() {
 
   const updateStatus = async (id: number, newStatus: string) => {
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/comments/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/comments/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: newStatus })
@@ -69,7 +69,7 @@ export default function AdminCommentsPage() {
   const deleteComment = async (id: number) => {
     if (!confirm('آیا از حذف این نظر اطمینان دارید؟')) return;
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/comments/?id=${id}`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/comments/?id=${id}`, {
         method: 'DELETE'
       });
       if (res?.message) {
@@ -89,7 +89,7 @@ export default function AdminCommentsPage() {
     
     setReplySubmitting(true);
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/comments/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/comments/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comment_id: commentId, message: replyText.trim() })

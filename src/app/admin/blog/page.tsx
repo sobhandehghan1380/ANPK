@@ -21,7 +21,7 @@ export default function BlogAnalyticsPage() {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/blog-analytics/`);
+      const res = await adminFetch(`${API_BASE}/api/admin/blog-analytics/`);
       setData(res);
     } catch (err) {
       console.error('Error loading analytics:', err);

@@ -18,7 +18,7 @@ export default function ScheduledPublishPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/scheduled-publish/`);
+      const res = await adminFetch(`${API_BASE}/api/admin/scheduled-publish/`);
       setScheduled(res?.scheduled || []);
       setDueCount(res?.due_count || 0);
       setTotalScheduled(res?.total_scheduled || 0);
@@ -46,7 +46,7 @@ export default function ScheduledPublishPage() {
     
     setPublishing(true);
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/scheduled-publish/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/scheduled-publish/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'publish_now' })

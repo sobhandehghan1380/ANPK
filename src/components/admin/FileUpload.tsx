@@ -63,7 +63,7 @@ export default function FileUpload({
       formData.append('file', file);
       formData.append('type', type);
 
-      const res = await fetch(`${API_BASE}/api/portal/admin/upload/`, {
+      const res = await fetch(`${API_BASE}/api/admin/upload/`, {
         method: 'POST',
         body: formData,
       });

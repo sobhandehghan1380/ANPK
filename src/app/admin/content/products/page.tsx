@@ -39,8 +39,8 @@ export default function AdminProductsPage() {
     setLoading(true);
     try {
       const [pRes, cRes] = await Promise.all([
-        adminFetch(`${API_BASE}/api/portal/admin/products/`),
-        adminFetch(`${API_BASE}/api/portal/admin/product-categories/`),
+        adminFetch(`${API_BASE}/api/admin/products/`),
+        adminFetch(`${API_BASE}/api/admin/product-categories/`),
       ]);
       setProducts(pRes || []);
       setCategories(cRes || []);
@@ -79,7 +79,7 @@ export default function AdminProductsPage() {
     });
     
     try {
-      const features = await adminFetch(`${API_BASE}/api/portal/admin/product-features/?product_id=${p.id}`);
+      const features = await adminFetch(`${API_BASE}/api/admin/product-features/?product_id=${p.id}`);
       setProductFeatures(features || []);
     } catch {
       setProductFeatures([]);
@@ -104,7 +104,7 @@ export default function AdminProductsPage() {
         ? { ...prodForm, id: editProdId, category_id: prodForm.category_id ? Number(prodForm.category_id) : null }
         : { ...prodForm, category_id: prodForm.category_id ? Number(prodForm.category_id) : null };
       
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/products/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/products/`, {
         method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       });
       if (res?.message) {
@@ -119,7 +119,7 @@ export default function AdminProductsPage() {
   const handleDeleteProduct = async (id: number) => {
     if (!confirm('آیا از حذف این محصول و تمام ویژگی‌های آن اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/products/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/products/?id=${id}`, { method: 'DELETE' });
       showMsg('success', 'محصول حذف شد.');
       loadAll();
     } catch (err: any) { showMsg('error', err?.message || 'خطا در حذف'); }
@@ -130,7 +130,7 @@ export default function AdminProductsPage() {
     if (!newFeature.title.trim() || !editProdId) return;
     setSubmitting(true);
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/product-features/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/product-features/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_id: editProdId, ...newFeature })
@@ -138,7 +138,7 @@ export default function AdminProductsPage() {
       if (res?.message) {
         showMsg('success', res.message);
         setNewFeature({ title: '', description: '', icon_name: 'CheckCircle2' });
-        const features = await adminFetch(`${API_BASE}/api/portal/admin/product-features/?product_id=${editProdId}`);
+        const features = await adminFetch(`${API_BASE}/api/admin/product-features/?product_id=${editProdId}`);
         setProductFeatures(features || []);
       }
     } catch (err: any) { showMsg('error', err?.message || 'خطا در افزودن ویژگی'); }
@@ -147,14 +147,14 @@ export default function AdminProductsPage() {
 
   const handleUpdateFeature = async (featId: number, data: any) => {
     try {
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/product-features/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/product-features/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: featId, product_id: editProdId, ...data })
       });
       if (res?.message) {
         showMsg('success', res.message);
-        const features = await adminFetch(`${API_BASE}/api/portal/admin/product-features/?product_id=${editProdId}`);
+        const features = await adminFetch(`${API_BASE}/api/admin/product-features/?product_id=${editProdId}`);
         setProductFeatures(features || []);
       }
     } catch (err: any) { showMsg('error', err?.message || 'خطا در بروزرسانی ویژگی'); }
@@ -163,9 +163,9 @@ export default function AdminProductsPage() {
   const handleDeleteFeature = async (featId: number) => {
     if (!confirm('آیا از حذف این ویژگی اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/product-features/?id=${featId}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/product-features/?id=${featId}`, { method: 'DELETE' });
       showMsg('success', 'ویژگی حذف شد.');
-      const features = await adminFetch(`${API_BASE}/api/portal/admin/product-features/?product_id=${editProdId}`);
+      const features = await adminFetch(`${API_BASE}/api/admin/product-features/?product_id=${editProdId}`);
       setProductFeatures(features || []);
     } catch (err: any) { showMsg('error', err?.message || 'خطا در حذف ویژگی'); }
   };
@@ -177,7 +177,7 @@ export default function AdminProductsPage() {
     try {
       const method = editCatId ? 'PUT' : 'POST';
       const body = editCatId ? { ...catForm, id: editCatId } : catForm;
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/product-categories/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/product-categories/`, {
         method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
       });
       if (res?.message) {
@@ -193,7 +193,7 @@ export default function AdminProductsPage() {
   const handleDeleteCategory = async (id: number) => {
     if (!confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/product-categories/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/product-categories/?id=${id}`, { method: 'DELETE' });
       showMsg('success', 'دسته‌بندی حذف شد.');
       loadAll();
     } catch (err: any) { showMsg('error', err?.message || 'خطا در حذف'); }

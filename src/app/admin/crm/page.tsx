@@ -19,7 +19,7 @@ export default function CRMDashboardPage() {
     setLoading(true);
     try {
       const [cList, lList] = await Promise.all([
-        adminFetch(`${API_BASE}/api/portal/admin/clients/`),
+        adminFetch(`${API_BASE}/api/admin/clients/`),
         adminFetch(`${API_BASE}/api/leads/submit/`),
       ]);
       setClients(cList || []);

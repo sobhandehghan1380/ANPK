@@ -36,7 +36,7 @@ export default function AdminSMSPage() {
     setSubmitting(true);
     setSuccessMsg('');
     try {
-      const res = await adminFetch('http://127.0.0.1:8000/api/portal/admin/sms-logs/', {
+      const res = await adminFetch('http://127.0.0.1:8000/api/admin/sms-logs/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipient, text })

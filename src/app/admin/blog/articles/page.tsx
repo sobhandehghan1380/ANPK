@@ -50,8 +50,8 @@ export default function AdminArticlesPage() {
   const loadAll = async () => {
     try {
       const [artList, catList] = await Promise.all([
-        adminFetch(`${API_BASE}/api/portal/admin/articles/`),
-        adminFetch(`${API_BASE}/api/portal/admin/article-categories/`),
+        adminFetch(`${API_BASE}/api/admin/articles/`),
+        adminFetch(`${API_BASE}/api/admin/article-categories/`),
       ]);
       setArticles(artList || []);
       setCategories(catList || []);
@@ -101,7 +101,7 @@ export default function AdminArticlesPage() {
   const handleDeleteArticle = async (id: number, title: string) => {
     if (!confirm(`آیا از حذف مقاله "${title}" اطمینان دارید؟`)) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/articles/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/articles/?id=${id}`, { method: 'DELETE' });
       setSuccessMsg('مقاله با موفقیت حذف شد.');
       loadAll();
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -120,7 +120,7 @@ export default function AdminArticlesPage() {
       const method = editCatId ? 'PUT' : 'POST';
       const body: any = { name: catName, slug: catSlug, description: catDesc };
       if (editCatId) body.id = editCatId;
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/article-categories/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/article-categories/`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -140,7 +140,7 @@ export default function AdminArticlesPage() {
   const handleDeleteCategory = async (id: number, name: string) => {
     if (!confirm(`آیا از حذف دسته‌بندی "${name}" اطمینان دارید؟`)) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/article-categories/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/article-categories/?id=${id}`, { method: 'DELETE' });
       setSuccessMsg('دسته‌بندی حذف شد.');
       loadAll();
       setTimeout(() => setSuccessMsg(''), 3000);
