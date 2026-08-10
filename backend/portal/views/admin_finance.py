@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
@@ -172,7 +173,7 @@ def admin_subscriptions(request):
         'auto_renew': s.auto_renew,
         'canceled_at': s.canceled_at.strftime('%Y-%m-%d') if s.canceled_at else None,
         'cancellation_reason': s.cancellation_reason,
-        'days_remaining': (s.end_date - __import__('datetime').datetime.now().date()).days,
+        'days_remaining': (s.end_date - datetime.now().date()).days,
         'monthly_price': s.custom_monthly_price if s.is_custom_plan else (s.plan.monthly_price if s.plan else 0),
     } for s in subs]
     
