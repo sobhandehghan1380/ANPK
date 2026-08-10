@@ -85,7 +85,8 @@ export default function AdminSubscriptionsPage() {
         action: 'create_subscription',
         client_id: parseInt(clientId),
         months,
-        auto_renew: autoRenew
+        auto_renew: autoRenew,
+        use_custom_plan: activeTab === 'custom',
       };
 
       if (activeTab === 'custom') {
@@ -149,11 +150,11 @@ export default function AdminSubscriptionsPage() {
     }
 
     if (statusFilter === 'active') {
-      list = list.filter(sub => sub.is_active && sub.days_remaining > 7);
+      list = list.filter(sub => sub.status === "active" && sub.days_remaining > 7);
     } else if (statusFilter === 'expiring') {
-      list = list.filter(sub => sub.is_active && sub.days_remaining <= 7 && sub.days_remaining >= 0);
+      list = list.filter(sub => sub.status === "active" && sub.days_remaining <= 7 && sub.days_remaining >= 0);
     } else if (statusFilter === 'expired') {
-      list = list.filter(sub => !sub.is_active || sub.days_remaining < 0);
+      list = list.filter(sub => !sub.status === "active" || sub.days_remaining < 0);
     }
 
     return list;
@@ -164,9 +165,9 @@ export default function AdminSubscriptionsPage() {
     const subs = data?.subscriptions || [];
     return {
       total: subs.length,
-      active: subs.filter((s: any) => s.is_active && s.days_remaining > 7).length,
-      expiring: subs.filter((s: any) => s.is_active && s.days_remaining <= 7 && s.days_remaining >= 0).length,
-      expired: subs.filter((s: any) => !s.is_active || s.days_remaining < 0).length,
+      active: subs.filter((s: any) => s.status === "active" && s.days_remaining > 7).length,
+      expiring: subs.filter((s: any) => s.status === "active" && s.days_remaining <= 7 && s.days_remaining >= 0).length,
+      expired: subs.filter((s: any) => ["expired", "canceled", "past_due"].includes(s.status)).length,
     };
   }, [data]);
 
@@ -182,6 +183,14 @@ export default function AdminSubscriptionsPage() {
   }
 
   const plans = data?.plans || [];
+
+  const statusLabels: Record<string, string> = {
+    trialing: "در دوره تست",
+    active: "فعال",
+    past_due: "سررسید شده",
+    canceled: "لغو شده",
+    expired: "منقضی شده",
+  };
   const clients = data?.clients || [];
 
   return (
@@ -278,6 +287,8 @@ export default function AdminSubscriptionsPage() {
           <div className="flex gap-2">
             {[
               { id: 'all', label: 'همه' },
+              { id: 'all', label: 'همه' },
+              { id: 'trialing', label: 'در تست' },
               { id: 'active', label: 'فعال' },
               { id: 'expiring', label: 'در حال انقضا' },
               { id: 'expired', label: 'منقضی' },
@@ -307,8 +318,8 @@ export default function AdminSubscriptionsPage() {
           </div>
         ) : (
           filteredSubs.map((sub: any) => {
-            const isExpiringSoon = sub.is_active && sub.days_remaining <= 7 && sub.days_remaining >= 0;
-            const isExpired = !sub.is_active || sub.days_remaining < 0;
+            const isExpiringSoon = sub.status === "active" && sub.days_remaining <= 7 && sub.days_remaining >= 0;
+            const isExpired = !sub.status === "active" || sub.days_remaining < 0;
             
             return (
               <div 
@@ -368,7 +379,7 @@ export default function AdminSubscriptionsPage() {
                     </span>
                   </div>
 
-                  {sub.is_active && (
+                  {sub.status === "active" && (
                     <div className="pt-3 border-t dark:border-slate-800 border-slate-200 flex gap-2">
                       {!isExpired && (
                         <button 
