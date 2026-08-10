@@ -31,8 +31,8 @@ urlpatterns = [
     
     # Admin - CRM & Clients
     path('api/admin/clients/', views.admin_clients, name='admin_clients'),
-    path('api/admin/leads/', views.admin_leads, name='admin_leads'),
-    path('api/admin/leads/convert/', views.admin_leads_convert, name='admin_leads_convert'),
+    # Leads are managed via /api/leads/submit/ (POST for CRUD, GET for list)
+    path('api/admin/leads/convert/', views.admin_convert_lead, name='admin_leads_convert'),
     
     # Admin - Finance
     path('api/admin/finance/plans/', views.admin_pricing_plans, name='admin_pricing_plans'),
