@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.npm-cache/
 /.pnp
 .pnp.js
 
@@ -26,6 +27,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+backend/.env
 
 # vercel
 .vercel
@@ -50,3 +52,4 @@ backend/db.sqlite3
 .coverage
 htmlcov/
 backend/media/
+backend/logs/*.log

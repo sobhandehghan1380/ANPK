@@ -1,20 +1,26 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getAPIKeys, createAPIKey } from '@/lib/api';
+import { getAdminProjects, generateProjectAPIKey } from '@/lib/api';
 import { Settings, KeyRound, PlusCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 export default function AdminSettingsPage() {
   const [keys, setKeys] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newKeyName, setNewKeyName] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [createdNotice, setCreatedNotice] = useState('');
 
   const fetchKeys = async () => {
     try {
-      const res = await getAPIKeys();
-      setKeys(res);
+      const res = await getAdminProjects();
+      const projectList = Array.isArray(res) ? res : [];
+      setProjects(projectList);
+      setKeys(projectList.flatMap((project: any) =>
+        (project.api_keys || []).map((key: any) => ({ ...key, project_name: project.title }))
+      ));
     } catch (err) {
       console.error('Error fetching API keys:', err);
     } finally {
@@ -28,14 +34,15 @@ export default function AdminSettingsPage() {
 
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newKeyName) return;
+    if (!newKeyName || !projectId) return;
 
     setSubmitting(true);
     setCreatedNotice('');
     try {
-      const res = await createAPIKey(newKeyName);
+      const res = await generateProjectAPIKey(Number(projectId), newKeyName);
       setCreatedNotice(`کلید API جدید ادمین صادر گردید: ${res.api_key}`);
       setNewKeyName('');
+      setProjectId('');
       fetchKeys();
     } catch (err) {
       console.error('Error creating API key:', err);
@@ -81,6 +88,10 @@ export default function AdminSettingsPage() {
         )}
 
         <form onSubmit={handleCreateKey} className="flex flex-col sm:flex-row items-center gap-4">
+          <select required value={projectId} onChange={(e) => setProjectId(e.target.value)} className="w-full sm:w-72 px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold">
+            <option value="">انتخاب پروژه...</option>
+            {projects.map((project: any) => <option key={project.id} value={project.id}>{project.client_name} — {project.title}</option>)}
+          </select>
           <input
             type="text"
             required
@@ -111,6 +122,7 @@ export default function AdminSettingsPage() {
             <div key={k.id} className="p-4 rounded-xl dark:bg-slate-900 bg-white border dark:border-slate-800 border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
               <div>
                 <span className="text-xs font-bold dark:text-white text-slate-900 block">{k.name}</span>
+                <span className="text-[10px] font-bold text-brand-500 block">پروژه: {k.project_name}</span>
                 <span className="text-[10px] font-mono text-brand-600 dark:text-brand-400 font-bold dir-ltr block mt-0.5">{k.api_key}</span>
               </div>
               <span className="text-[10px] dark:text-slate-400 text-slate-500 shrink-0 font-mono">ایجاد: {k.created_at || 'امروز'}</span>

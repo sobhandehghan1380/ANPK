@@ -77,7 +77,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
         if (data.success) {
           setResults(data.results);

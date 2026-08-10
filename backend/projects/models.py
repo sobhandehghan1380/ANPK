@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-from portal.models import ClientOrganization
+from accounts.models import Organization
 
 class ProjectCategory(models.Model):
     name = models.CharField(max_length=150, verbose_name="عنوان دسته‌بندی")
@@ -51,7 +51,7 @@ class PublicPortfolioProject(models.Model):
 
 
 class ClientContractProject(models.Model):
-    client = models.ForeignKey(ClientOrganization, on_delete=models.CASCADE, related_name="contract_projects", verbose_name="سازمان / کاربر مالک پروژه")
+    client = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="contract_projects", verbose_name="سازمان / کاربر مالک پروژه")
     title = models.CharField(max_length=255, verbose_name="عنوان پروژه قراردادی مشتری")
     slug = models.SlugField(unique=True, verbose_name="شناسه یکتا")
     contract_number = models.CharField(max_length=100, default="ANPK-CNT-1404-892", verbose_name="شماره رسمی قرارداد")

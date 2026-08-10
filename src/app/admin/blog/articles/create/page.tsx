@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { adminFetch } from '@/lib/api';
@@ -164,10 +164,10 @@ function CreateArticleForm() {
 
   const loadData = async () => {
     try {
-      const catList = await adminFetch(`${API_BASE}/api/admin/article-categories/`);
+      const catList = await adminFetch(`${API_BASE}/api/v1/admin/article-categories/`);
       setCategories(catList || []);
       if (editId) {
-        const artList = await adminFetch(`${API_BASE}/api/admin/articles/`);
+        const artList = await adminFetch(`${API_BASE}/api/v1/admin/articles/`);
         const a = artList?.find((art: any) => art.id.toString() === editId);
         if (a) {
           setTitle(a.title || ''); setSlug(a.slug || ''); setSlugManual(true);
@@ -280,7 +280,7 @@ function CreateArticleForm() {
       if (ogImageUrl) fd.append('og_image', ogImageUrl);
 
       const method = editId ? 'PUT' : 'POST';
-      const res = await adminFetch(`${API_BASE}/api/admin/articles/`, { method, body: fd });
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/articles/`, { method, body: fd });
       if (res?.message) {
         setSuccessMsg(res.message);
         clearAutoSave(); // Clear auto-save after successful submit

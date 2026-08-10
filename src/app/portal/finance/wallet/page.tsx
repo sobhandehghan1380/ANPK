@@ -38,9 +38,11 @@ export default function PortalWalletPage() {
     setChargeNotice('');
     try {
       const res = await chargeWallet(numericAmount, `افزایش اعتبار آنلاین کیف پول سازمان (${numericAmount.toLocaleString('fa-IR')} تومان)`);
-      setChargeNotice(`شارژ با موفقیت انجام شد! موجودی جدید دیتابیس: ${res.new_balance.toLocaleString('fa-IR')} تومان`);
-      setShowModal(false);
-      fetchWallet();
+      if (res?.payment_url) {
+        window.location.assign(res.payment_url);
+        return;
+      }
+      setChargeNotice(res?.error || 'امکان ایجاد درخواست پرداخت وجود ندارد.');
     } catch (err) {
       console.error('Error charging wallet:', err);
     } finally {

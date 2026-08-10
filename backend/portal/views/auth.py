@@ -7,10 +7,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from portal.models import (
-    ClientOrganization, Wallet, WalletTransaction, SLASupportContract,
-    SupportTicket, APIKey, SMSLog, SMSOTPCode
-)
+from accounts.models import Organization as ClientOrganization, SMSOTPCode
+from billing.models import Wallet, WalletTransaction
+from integrations.models import APIKey, SMSLog
+from support.models import SLASupportContract, SupportTicket
 from services.models import AILog, SystemNodeStatus
 
 User = get_user_model()
@@ -27,7 +27,7 @@ from portal.views.utils import clean_persian_text
 @permission_classes([AllowAny])
 def admin_token_obtain(request):
     """
-    POST /api/portal/admin/token/
+    POST /api/v1/admin/token/
     دریافت JWT token برای ادمین‌های سیستم
     body: { "username": "...", "password": "..." }
     """
@@ -68,7 +68,7 @@ def admin_token_obtain(request):
 @permission_classes([AllowAny])
 def admin_token_refresh(request):
     """
-    POST /api/portal/admin/token/refresh/
+    POST /api/v1/admin/token/refresh/
     تمدید JWT token با refresh token
     """
     from rest_framework_simplejwt.tokens import RefreshToken as RT

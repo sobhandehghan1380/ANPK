@@ -1,4 +1,7 @@
+import os
+
 from django.core.management.base import BaseCommand
+from django.core.management.base import CommandError
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import date, timedelta
@@ -11,8 +14,11 @@ class Command(BaseCommand):
         self.stdout.write('در حال مقداردهی اولیه داده‌های استاندارد دیتابیس...')
 
         # 1. Superuser
+        admin_password = os.getenv('ANPK_SEED_ADMIN_PASSWORD')
+        if not admin_password:
+            raise CommandError('برای seed کردن ادمین، ANPK_SEED_ADMIN_PASSWORD را تنظیم کنید.')
         admin_user, _ = User.objects.get_or_create(username='admin')
-        admin_user.set_password('admin123')
+        admin_user.set_password(admin_password)
         admin_user.email = 'admin@anpk.ir'
         admin_user.is_staff = True
         admin_user.is_superuser = True
@@ -121,7 +127,10 @@ class Command(BaseCommand):
         SolutionBenefit.objects.get_or_create(solution=sol1, title='پایداری انتقال اطلاعات', defaults={'metric_value': '۹۹.۹٪', 'description': 'استفاده از معماری پیام‌رسان توزیع‌شده'})
 
         # 4. Pricing Plans & Subscriptions
-        from portal.models import PricingPlan, ClientOrganization, Wallet, WalletTransaction, SLASupportContract, ClientSubscription, Invoice, InvoiceItem, Payment, SupportTicket, TicketReply
+        from accounts.models import Organization as ClientOrganization
+        from billing.models import Invoice, InvoiceItem, Payment, Wallet, WalletTransaction
+        from subscriptions.models import ClientSubscription, PricingPlan
+        from support.models import SLASupportContract, SupportTicket, TicketReply
         
         plan_basic, _ = PricingPlan.objects.get_or_create(
             name='پلن پایه استارتاپی (Basic)',
@@ -178,7 +187,6 @@ class Command(BaseCommand):
             defaults={
                 'name': 'بیمارستان تخصصی و فوق‌تخصصی ولایت',
                 'contact_person': 'دکتر رضایی (رئیس انفورماتیک)',
-                'owner_user': client_user,
                 'email': 'velayat@hospital.ac.ir',
                 'address': 'یزد، بلوار دانشگاه، مجتمع درمانی ولایت',
                 'national_code': '14008923011',
@@ -186,6 +194,8 @@ class Command(BaseCommand):
                 'portal_access': True
             }
         )
+        from accounts.services import ensure_owner_membership
+        ensure_owner_membership(client_org, client_org.phone, client_org.contact_person, client_user)
 
         wallet, _ = Wallet.objects.get_or_create(client=client_org, defaults={'balance': 45000000})
         WalletTransaction.objects.get_or_create(
@@ -194,7 +204,7 @@ class Command(BaseCommand):
             defaults={'transaction_type': 'deposit', 'description': 'شارژ اعتباری اولیه حساب سازمانی'}
         )
 
-        SLASupportContract.objects.get_or_create(
+        sla_contract, _ = SLASupportContract.objects.get_or_create(
             client=client_org,
             defaults={
                 'plan_name': 'پشتیبانی طلایی SLA ۲۴/۷',
@@ -278,6 +288,16 @@ class Command(BaseCommand):
         ProjectPhase.objects.get_or_create(project=contract_proj, phase_number=1, defaults={'title': 'فاز ۱: نیازسنجی، خرید سنسورها و طراحی معماری', 'progress_percentage': 100, 'status': 'COMPLETED'})
         ProjectPhase.objects.get_or_create(project=contract_proj, phase_number=2, defaults={'title': 'فاز ۲: پیاده‌سازی بک‌اند و استقرار نودهای محلی', 'progress_percentage': 100, 'status': 'COMPLETED'})
         ProjectPhase.objects.get_or_create(project=contract_proj, phase_number=3, defaults={'title': 'فاز ۳: اتصال به هشدار SMS و تحویل گارانتی SLA', 'progress_percentage': 60, 'status': 'IN_PROGRESS'})
+
+        sub1.project = contract_proj
+        sub1.save(update_fields=['project'])
+        sla_contract.project = contract_proj
+        sla_contract.subscription = sub1
+        sla_contract.save(update_fields=['project', 'subscription'])
+        inv1.project = contract_proj
+        inv1.save(update_fields=['project'])
+        t1.project = contract_proj
+        t1.save(update_fields=['project'])
 
         # 7. Blog Articles & Comments
         from blog.models import ArticleCategory, ArticleTag, Article, ArticleComment

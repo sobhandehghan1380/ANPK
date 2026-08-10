@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminFetch } from '@/lib/api';
@@ -50,8 +50,8 @@ export default function AdminArticlesPage() {
   const loadAll = async () => {
     try {
       const [artList, catList] = await Promise.all([
-        adminFetch(`${API_BASE}/api/admin/articles/`),
-        adminFetch(`${API_BASE}/api/admin/article-categories/`),
+        adminFetch(`${API_BASE}/api/v1/admin/articles/`),
+        adminFetch(`${API_BASE}/api/v1/admin/article-categories/`),
       ]);
       setArticles(artList || []);
       setCategories(catList || []);
@@ -101,7 +101,7 @@ export default function AdminArticlesPage() {
   const handleDeleteArticle = async (id: number, title: string) => {
     if (!confirm(`آیا از حذف مقاله "${title}" اطمینان دارید؟`)) return;
     try {
-      await adminFetch(`${API_BASE}/api/admin/articles/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/v1/admin/articles/?id=${id}`, { method: 'DELETE' });
       setSuccessMsg('مقاله با موفقیت حذف شد.');
       loadAll();
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -120,7 +120,7 @@ export default function AdminArticlesPage() {
       const method = editCatId ? 'PUT' : 'POST';
       const body: any = { name: catName, slug: catSlug, description: catDesc };
       if (editCatId) body.id = editCatId;
-      const res = await adminFetch(`${API_BASE}/api/admin/article-categories/`, {
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/article-categories/`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -140,7 +140,7 @@ export default function AdminArticlesPage() {
   const handleDeleteCategory = async (id: number, name: string) => {
     if (!confirm(`آیا از حذف دسته‌بندی "${name}" اطمینان دارید؟`)) return;
     try {
-      await adminFetch(`${API_BASE}/api/admin/article-categories/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/v1/admin/article-categories/?id=${id}`, { method: 'DELETE' });
       setSuccessMsg('دسته‌بندی حذف شد.');
       loadAll();
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -258,7 +258,7 @@ export default function AdminArticlesPage() {
                   className="w-full pr-9 pl-4 py-2.5 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 text-xs focus:outline-none focus:border-brand-500"
                 />
               </div>
-              <Link href="/admin/content/articles/create"
+              <Link href="/admin/blog/articles/create"
                 className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-brand-500/20 whitespace-nowrap">
                 <PlusCircle className="w-4 h-4" /> مقاله جدید
               </Link>
@@ -307,7 +307,7 @@ export default function AdminArticlesPage() {
                 {hasFilters ? 'هیچ مقاله‌ای با این فیلترها یافت نشد.' : 'هنوز مقاله‌ای ثبت نشده.'}
               </p>
               {!hasFilters && (
-                <Link href="/admin/content/articles/create"
+                <Link href="/admin/blog/articles/create"
                   className="inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-xl bg-brand-500 text-white text-xs font-bold">
                   <PlusCircle className="w-4 h-4" /> اولین مقاله را بنویسید
                 </Link>

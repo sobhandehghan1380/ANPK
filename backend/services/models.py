@@ -2,7 +2,7 @@ from django.db import models
 
 class OpenRouterConfig(models.Model):
     api_url = models.URLField(default="https://openrouter.ai/api/v1/chat/completions", verbose_name="آدرس API پرووایدر هوش مصنوعی")
-    api_key = models.CharField(max_length=255, default="sk-or-v1-demo-key-anpk", verbose_name="کلید API سرویس هوش مصنوعی")
+    api_key = models.CharField(max_length=255, blank=True, default="", verbose_name="کلید API سرویس هوش مصنوعی")
     default_model = models.CharField(max_length=150, default="google/gemini-2.5-flash", verbose_name="مدل هوش مصنوعی پیش‌فرض")
     wallet_rate_per_query = models.IntegerField(default=240, verbose_name="تعرفه کسر از کیف پول برای هر کوئری (تومان)")
     is_active = models.BooleanField(default=True, verbose_name="سرویس فعال است")
@@ -17,8 +17,8 @@ class OpenRouterConfig(models.Model):
 
 class SMSGatewayConfig(models.Model):
     provider_name = models.CharField(max_length=100, default="کاوه نگار / ملی پیامک واسط", verbose_name="نام سامانه پیامکی")
-    api_key = models.CharField(max_length=255, default="sms-gateway-demo-key-anpk", verbose_name="کلید API درگاه پیامک")
-    sender_line = models.CharField(max_length=50, default="30005050", verbose_name="خط اختصاصی ارسال پیامک")
+    api_key = models.CharField(max_length=255, blank=True, default="", verbose_name="کلید API درگاه پیامک")
+    sender_line = models.CharField(max_length=50, blank=True, default="", verbose_name="خط اختصاصی ارسال پیامک")
     is_active = models.BooleanField(default=True, verbose_name="درگاه فعال است")
 
     def __str__(self):

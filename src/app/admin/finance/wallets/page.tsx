@@ -1,17 +1,17 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { getAdminWallets, topUpClientWallet, adminFetch } from '@/lib/api';
 import { Wallet, PlusCircle, CheckCircle2, DollarSign, History, ShieldCheck, X, Eye, TrendingUp, TrendingDown } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/admin';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000') + '/api/v1/admin';
 
 export default function AdminWalletsPage() {
   const [activeTab, setActiveTab] = useState<'wallets' | 'transactions' | 'sla'>('wallets');
   const [wallets, setWallets] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [slaContracts, setSlaContracts] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Top-up form
@@ -24,20 +24,24 @@ export default function AdminWalletsPage() {
   // SLA form
   const [slaPlan, setSlaPlan] = useState('SLA Gold');
   const [slaDuration, setSlaDuration] = useState(12);
-  const [slaClientId, setSlaClientId] = useState<number | null>(null);
+  const [slaSubscriptionId, setSlaSubscriptionId] = useState<number | null>(null);
+  const [slaSupportSchedule, setSlaSupportSchedule] = useState('24/7');
+  const [slaResponseMinutes, setSlaResponseMinutes] = useState(30);
+  const [slaResolutionHours, setSlaResolutionHours] = useState(4);
+  const [slaAvailability, setSlaAvailability] = useState(99.9);
 
   // View transactions modal
   const [txClientId, setTxClientId] = useState<number | null>(null);
 
   const loadAll = async () => {
     try {
-      const [wRes, cRes, slaRes] = await Promise.all([
-        adminFetch(`${API_BASE}/admin/wallets/`),
-        adminFetch(`${API_BASE}/admin/clients/`),
-        adminFetch(`${API_BASE}/admin/sla-contracts/`),
+      const [wRes, subRes, slaRes] = await Promise.all([
+        adminFetch(`${API_BASE}/wallets/`),
+        adminFetch(`${API_BASE}/finance/subscriptions/`),
+        adminFetch(`${API_BASE}/sla-contracts/`),
       ]);
       setWallets(Array.isArray(wRes) ? wRes : []);
-      setClients(Array.isArray(cRes) ? cRes : []);
+      setSubscriptions(Array.isArray(subRes?.subscriptions) ? subRes.subscriptions : []);
       setSlaContracts(Array.isArray(slaRes) ? slaRes : []);
       if (Array.isArray(wRes) && wRes.length > 0) setSelectedClientId(wRes[0].client_id);
     } catch (err) {
@@ -50,8 +54,8 @@ export default function AdminWalletsPage() {
   const loadTransactions = async (clientId?: number) => {
     try {
       const url = clientId
-        ? `${API_BASE}/admin/wallet-transactions/?client_id=${clientId}`
-        : `${API_BASE}/admin/wallet-transactions/`;
+        ? `${API_BASE}/wallet-transactions/?client_id=${clientId}`
+        : `${API_BASE}/wallet-transactions/`;
       const res = await adminFetch(url);
       setTransactions(Array.isArray(res) ? res : []);
     } catch (err) {
@@ -87,14 +91,22 @@ export default function AdminWalletsPage() {
 
   const handleCreateSLA = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!slaClientId) return;
+    if (!slaSubscriptionId) return;
     setSubmitting(true);
     try {
-      const res = await adminFetch(`${API_BASE}/admin/sla-contracts/`, {
+      const res = await adminFetch(`${API_BASE}/sla-contracts/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: slaClientId, plan_name: slaPlan, duration_months: slaDuration })
-      }).then(r => r.json());
+        body: JSON.stringify({
+          subscription_id: slaSubscriptionId,
+          plan_name: slaPlan,
+          duration_months: slaDuration,
+          support_schedule: slaSupportSchedule,
+          response_time_minutes: slaResponseMinutes,
+          resolution_time_hours: slaResolutionHours,
+          availability_percentage: slaAvailability,
+        })
+      });
       if (res?.message) {
         setSuccessMsg(res.message);
         loadAll();
@@ -284,17 +296,18 @@ export default function AdminWalletsPage() {
               <ShieldCheck className="w-5 h-5 text-emerald-500" />
               <h2 className="text-base font-black dark:text-white text-slate-900">ثبت قرارداد SLA پشتیبانی جدید</h2>
             </div>
-            <form onSubmit={handleCreateSLA} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <form onSubmit={handleCreateSLA} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold dark:text-slate-300 text-slate-700 block">سازمان:</label>
+                <label className="text-xs font-bold dark:text-slate-300 text-slate-700 block">اشتراک پروژه:</label>
                 <select
                   required
-                  onChange={e => setSlaClientId(Number(e.target.value))}
+                  value={slaSubscriptionId || ''}
+                  onChange={e => setSlaSubscriptionId(Number(e.target.value) || null)}
                   className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs dark:text-white text-slate-900 focus:outline-none focus:border-emerald-500 font-bold"
                 >
-                  <option value="">انتخاب سازمان...</option>
-                  {clients.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  <option value="">انتخاب اشتراک...</option>
+                  {subscriptions.filter(subscription => !subscription.has_sla && subscription.project_id).map(subscription => (
+                    <option key={subscription.id} value={subscription.id}>{subscription.client_name} — {subscription.project_name} — {subscription.plan_name}</option>
                   ))}
                 </select>
               </div>
@@ -310,6 +323,26 @@ export default function AdminWalletsPage() {
                   <option value="SLA Gold">SLA Gold - پشتیبانی طلایی</option>
                   <option value="SLA Platinum">SLA Platinum - پشتیبانی پلاتینیوم</option>
                 </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold dark:text-slate-300 text-slate-700 block">ساعات پشتیبانی:</label>
+                <input value={slaSupportSchedule} onChange={e => setSlaSupportSchedule(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold dark:text-slate-300 text-slate-700 block">مدت قرارداد (ماه):</label>
+                <input type="number" min="1" value={slaDuration} onChange={e => setSlaDuration(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold dark:text-slate-300 text-slate-700 block">زمان پاسخ (دقیقه):</label>
+                <input type="number" min="1" value={slaResponseMinutes} onChange={e => setSlaResponseMinutes(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold dark:text-slate-300 text-slate-700 block">زمان رفع بحرانی (ساعت):</label>
+                <input type="number" min="1" value={slaResolutionHours} onChange={e => setSlaResolutionHours(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold dark:text-slate-300 text-slate-700 block">دسترس‌پذیری تضمینی:</label>
+                <input type="number" min="0" max="100" step="0.01" value={slaAvailability} onChange={e => setSlaAvailability(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold" />
               </div>
               <button
                 type="submit"
@@ -333,7 +366,9 @@ export default function AdminWalletsPage() {
                       {c.is_active ? 'فعال' : 'منقضی'}
                     </span>
                   </div>
-                  <p className="text-xs dark:text-slate-400 text-slate-500">پلن: <strong className="text-white">{c.plan_name}</strong> &nbsp;|&nbsp; شروع: {c.start_date} &nbsp;|&nbsp; مدت: {c.duration_months} ماه</p>
+                  <p className="text-xs font-bold text-brand-500">پروژه: {c.project_name}</p>
+                  <p className="text-xs dark:text-slate-400 text-slate-500">پلن: <strong className="dark:text-white text-slate-900">{c.plan_name}</strong> &nbsp;|&nbsp; شروع: {c.start_date} &nbsp;|&nbsp; مدت: {c.duration_months} ماه</p>
+                  <p className="text-[10px] dark:text-slate-500 text-slate-400">{c.support_schedule} · پاسخ {c.response_time_minutes} دقیقه · رفع بحرانی {c.resolution_time_hours} ساعت · دسترس‌پذیری {c.availability_percentage}٪</p>
                 </div>
                 <div className="text-left">
                   <p className="text-xs font-bold text-amber-500">{c.remaining_days} روز مانده</p>

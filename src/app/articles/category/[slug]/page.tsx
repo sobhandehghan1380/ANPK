@@ -8,17 +8,18 @@ import { ScrollReveal } from '@/components/ScrollReveal';
 import { FolderOpen, ChevronRight } from 'lucide-react';
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
   const articles = await getArticles();
   const categoryArticles = articles.filter((a: any) => 
-    a.category?.toLowerCase().replace(/\s+/g, '-') === params.slug ||
-    a.category === params.slug
+    a.category?.toLowerCase().replace(/\s+/g, '-') === slug ||
+    a.category === slug
   );
   
-  const categoryName = categoryArticles[0]?.category || params.slug.replace(/-/g, ' ');
+  const categoryName = categoryArticles[0]?.category || slug.replace(/-/g, ' ');
   
   return {
     title: `${categoryName} | پایگاه دانش ANPK`,
@@ -27,19 +28,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CategoryArticlesPage({ params }: Props) {
+  const { slug } = await params;
   const articles = await getArticles();
   
   // Filter articles by category slug
   const categoryArticles = articles.filter((a: any) => {
     const catSlug = (a.category || '').toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and');
-    return catSlug === params.slug || a.category === params.slug;
+    return catSlug === slug || a.category === slug;
   });
 
   if (categoryArticles.length === 0) {
     notFound();
   }
 
-  const categoryName = categoryArticles[0]?.category || params.slug.replace(/-/g, ' ');
+  const categoryName = categoryArticles[0]?.category || slug.replace(/-/g, ' ');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-10 overflow-x-hidden">

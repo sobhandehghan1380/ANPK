@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminFetch } from '@/lib/api';
@@ -46,8 +46,8 @@ export default function AdminClientsPage() {
     setLoading(true);
     try {
       const [cList, uList] = await Promise.all([
-        adminFetch(`${API_BASE}/api/admin/clients/`),
-        adminFetch(`${API_BASE}/api/admin/users/`),
+        adminFetch(`${API_BASE}/api/v1/admin/clients/`),
+        adminFetch(`${API_BASE}/api/v1/admin/users/`),
       ]);
       setClients(cList || []);
       setUsers(uList || []);
@@ -111,7 +111,7 @@ export default function AdminClientsPage() {
         body.initial_balance = initialBalance;
       }
 
-      const res = await adminFetch(`${API_BASE}/api/admin/clients/`, {
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/clients/`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -135,7 +135,7 @@ export default function AdminClientsPage() {
   const handleDeleteClient = async (id: number) => {
     if (!confirm('آیا از حذف این سازمان و تمام اطلاعات مرتبط اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/admin/clients/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/v1/admin/clients/?id=${id}`, { method: 'DELETE' });
       showMsg('success', 'سازمان حذف شد.');
       loadData();
     } catch (err: any) {
@@ -317,9 +317,9 @@ export default function AdminClientsPage() {
                 <h3 className="text-base font-black dark:text-white text-slate-900 truncate">{c.name}</h3>
                 {c.contact_person && (
                   <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full bg-brand-500/10 flex items-center justify-center">
+                    <span className="w-5 h-5 rounded-full bg-brand-500/10 flex items-center justify-center">
                       <UserCheck className="w-3 h-3 text-brand-500" />
-                    </div>
+                    </span>
                     {c.contact_person}
                   </p>
                 )}
@@ -608,10 +608,6 @@ export default function AdminClientsPage() {
                     <option key={u.id} value={u.id}>{u.username} ({u.role_label || 'کاربر'})</option>
                   ))}
                 </select>
-              </div>
-
-              <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 text-xs text-brand-300">
-                <strong>نکته:</strong> پس از ایجاد سازمان، یک کیف پول ۱۰ میلیون تومانی به صورت خودکار برای آن ساخته می‌شود.
               </div>
 
               {/* Modal Footer */}

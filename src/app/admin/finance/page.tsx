@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminFetch } from '@/lib/api';
@@ -21,9 +21,9 @@ export default function FinanceDashboardPage() {
     setLoading(true);
     try {
       const [invRes, walRes, subRes] = await Promise.all([
-        adminFetch(`${API_BASE}/api/admin/finance/invoices/`),
-        adminFetch(`${API_BASE}/api/admin/wallets/`),
-        adminFetch(`${API_BASE}/api/admin/finance/subscriptions/`),
+        adminFetch(`${API_BASE}/api/v1/admin/finance/invoices/`),
+        adminFetch(`${API_BASE}/api/v1/admin/wallets/`),
+        adminFetch(`${API_BASE}/api/v1/admin/finance/subscriptions/`),
       ]);
       setInvoices(invRes?.invoices || []);
       setWallets(Array.isArray(walRes) ? walRes : []);

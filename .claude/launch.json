@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "django-backend",
+      "runtimeExecutable": "C:\\Users\\Admin User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.8_qbz5n2kfra8p0\\python.exe",
+      "runtimeArgs": ["backend/manage.py", "runserver", "127.0.0.1:8000"],
+      "port": 8000
+    },
+    {
+      "name": "nextjs-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    }
+  ]
+}

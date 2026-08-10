@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import ClientOrganization, WalletTransaction, SMSLog, SupportTicket
+from accounts.models import Organization as ClientOrganization
+
+from billing.models import WalletTransaction
+from integrations.models import SMSLog
+from support.models import SupportTicket
 
 class ClientOrganizationSerializer(serializers.ModelSerializer):
     class Meta:

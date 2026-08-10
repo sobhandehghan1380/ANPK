@@ -7,10 +7,12 @@ import { FileText, PlusCircle, CheckCircle2, AlertCircle, Banknote, Trash2, XCir
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [clientId, setClientId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [invoiceType, setInvoiceType] = useState('custom');
   const [subId, setSubId] = useState('');
   const [description, setDescription] = useState('');
@@ -46,6 +48,7 @@ export default function InvoicesPage() {
       console.log('Invoices API Response:', res);
       setInvoices(res?.invoices || []);
       setClients(res?.clients || []);
+      setProjects(res?.projects || []);
       setSubscriptions(res?.subscriptions || []);
     } catch (err) {
       console.error('Error loading invoices:', err);
@@ -91,6 +94,7 @@ export default function InvoicesPage() {
     try {
       const res = await manageAdminInvoice({ 
         client_id: clientId, 
+        project_id: projectId || null,
         subscription_id: invoiceType === 'subscription' ? subId : null,
         invoice_type: invoiceType,
         description: description,
@@ -108,6 +112,8 @@ export default function InvoicesPage() {
         setDiscount(0);
         setTax(0); 
         setDescription('');
+        setProjectId('');
+        setSubId('');
         loadData();
         setIsModalOpen(false);
       }
@@ -260,7 +266,7 @@ export default function InvoicesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 border-b dark:border-slate-800 border-slate-200 pb-6">
             <div className="space-y-1.5">
               <label className="text-xs font-bold dark:text-slate-300 text-slate-700">نوع فاکتور:</label>
-              <select required value={invoiceType} onChange={e=>setInvoiceType(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold text-brand-500">
+              <select required value={invoiceType} onChange={e => { setInvoiceType(e.target.value); setSubId(''); if (e.target.value === 'wallet_recharge') setProjectId(''); }} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold text-brand-500">
                 <option value="custom">خدمات متفرقه و اختصاصی</option>
                 <option value="wallet_recharge">شارژ حساب / کیف پول</option>
                 <option value="subscription">تمدید / خرید اشتراک</option>
@@ -269,18 +275,35 @@ export default function InvoicesPage() {
             
             <div className="space-y-1.5">
               <label className="text-xs font-bold dark:text-slate-300 text-slate-700">مشتری / پرداخت‌کننده:</label>
-              <select required value={clientId} onChange={e=>setClientId(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold">
+              <select required value={clientId} onChange={e => { setClientId(e.target.value); setProjectId(''); setSubId(''); }} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold">
                 <option value="">انتخاب مشتری...</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
 
+            {invoiceType !== 'wallet_recharge' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold dark:text-slate-300 text-slate-700">پروژه مرتبط:</label>
+                <select
+                  value={projectId}
+                  onChange={e => { setProjectId(e.target.value); setSubId(''); }}
+                  required={invoiceType === 'subscription'}
+                  className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold"
+                >
+                  <option value="">بدون پروژه / خدمات عمومی</option>
+                  {projects.filter(project => String(project.client_id) === String(clientId)).map(project => (
+                    <option key={project.id} value={project.id}>{project.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {invoiceType === 'subscription' ? (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold dark:text-slate-300 text-slate-700">بابت کدام اشتراک:</label>
-                <select required value={subId} onChange={e=>setSubId(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold">
+                <select required value={subId} onChange={e => { const value = e.target.value; setSubId(value); const subscription = subscriptions.find(s => String(s.id) === value); if (subscription) { setProjectId(String(subscription.project_id || '')); setClientId(String(subscription.client_id)); } }} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold">
                   <option value="">انتخاب اشتراک...</option>
-                  {subscriptions.filter(s => s.label.includes(clients.find(c => c.id == clientId)?.name || '')).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  {subscriptions.filter(s => String(s.client_id) === String(clientId) && (!projectId || String(s.project_id) === String(projectId))).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </div>
             ) : (
@@ -383,7 +406,10 @@ export default function InvoicesPage() {
               <React.Fragment key={i.id}>
                 <tr className={`hover:bg-slate-50 dark:hover:bg-slate-900/50 ${expandedInvoiceId === i.id ? 'bg-slate-50 dark:bg-slate-900/50' : ''}`}>
                   <td className="p-4 font-mono font-black text-brand-500">{i.invoice_number}</td>
-                  <td className="p-4 font-bold dark:text-white text-slate-900">{i.client_name}</td>
+                  <td className="p-4 font-bold dark:text-white text-slate-900">
+                    {i.client_name}
+                    {i.project_name && <span className="block text-[10px] text-brand-500 mt-1">پروژه: {i.project_name}</span>}
+                  </td>
                   <td className="p-4">
                     <div className="flex flex-col gap-1 items-start">
                       {getTypeLabel(i.invoice_type)}

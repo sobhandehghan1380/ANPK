@@ -1,7 +1,9 @@
 import os
 import sys
 from pathlib import Path
+import dj_database_url
 from decouple import config, Csv
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -9,9 +11,12 @@ sys.path.insert(0, str(BASE_DIR))
 # ─────────────────────────────────────────────
 # SECURITY — از .env خوانده می‌شود
 # ─────────────────────────────────────────────
-SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-dev-only-key')
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,0.0.0.0,testserver,*', cast=Csv())
+SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-dev-only-key')
+if not DEBUG and SECRET_KEY == 'django-insecure-dev-only-key':
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY must be configured outside development.')
+
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,testserver', cast=Csv())
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -25,6 +30,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     # Local Apps
+    'accounts.apps.AccountsConfig',
+    'subscriptions.apps.SubscriptionsConfig',
+    'billing.apps.BillingConfig',
+    'support.apps.SupportConfig',
+    'integrations.apps.IntegrationsConfig',
     'core',
     'catalog',
     'portal',
@@ -67,13 +77,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
 
 LANGUAGE_CODE = 'fa-ir'
 TIME_ZONE = 'Asia/Tehran'
@@ -89,18 +105,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ─────────────────────────────────────────────
 # CORS — در dev همه مجازند، در prod محدود شود
 # ─────────────────────────────────────────────
-CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=DEBUG, cast=bool)
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,http://127.0.0.1:3000',
+    cast=Csv(),
+)
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='http://localhost:3000,http://127.0.0.1:3000',
+    cast=Csv(),
+)
 
 # ─────────────────────────────────────────────
 # Django REST Framework — با JWT احراز هویت
@@ -110,11 +126,29 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny',  # پیش‌فرض: باز — endpoint های ادمین override می‌کنند
+        'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
 }
+
+OTP_TTL_SECONDS = config('OTP_TTL_SECONDS', default=300, cast=int)
+PAYMENT_MOCK_ENABLED = config('PAYMENT_MOCK_ENABLED', default=DEBUG, cast=bool)
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+SMS_OTP_ENDPOINT = config('SMS_OTP_ENDPOINT', default='')
+SMS_OTP_API_KEY = config('SMS_OTP_API_KEY', default='')
+SMS_SENDER_LINE = config('SMS_SENDER_LINE', default='')
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=True, cast=bool)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
 # ─────────────────────────────────────────────
 # JWT Configuration

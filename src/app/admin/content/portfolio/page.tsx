@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
@@ -47,8 +47,8 @@ export default function AdminPortfolioPage() {
     setLoading(true);
     try {
       const [pRes, metaRes] = await Promise.all([
-        adminFetch(`${API_BASE}/api/admin/portfolio-projects/`),
-        adminFetch(`${API_BASE}/api/admin/project-metadata/`),
+        adminFetch(`${API_BASE}/api/v1/admin/portfolio-projects/`),
+        adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`),
       ]);
       setPortfolio(pRes || []);
       setCategories(metaRes?.categories || []);
@@ -114,7 +114,7 @@ export default function AdminPortfolioPage() {
       };
       
       const method = editId ? 'PUT' : 'POST';
-      const res = await adminFetch(`${API_BASE}/api/admin/portfolio-projects/`, {
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/portfolio-projects/`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -136,7 +136,7 @@ export default function AdminPortfolioPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('آیا از حذف این نمونه‌کار اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/admin/portfolio-projects/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/v1/admin/portfolio-projects/?id=${id}`, { method: 'DELETE' });
       showMsg('success', 'نمونه‌کار حذف شد.');
       loadAll();
     } catch (err: any) {
@@ -148,7 +148,7 @@ export default function AdminPortfolioPage() {
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return;
     try {
-      const res = await adminFetch(`${API_BASE}/api/admin/project-metadata/`, {
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add_category', name: newCatName })
@@ -157,7 +157,7 @@ export default function AdminPortfolioPage() {
         showMsg('success', res.message);
         setNewCatName('');
         // Reload categories
-        const metaRes = await adminFetch(`${API_BASE}/api/admin/project-metadata/`);
+        const metaRes = await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`);
         setCategories(metaRes?.categories || []);
       } else if (res?.error) {
         showMsg('error', res.error);
@@ -170,7 +170,7 @@ export default function AdminPortfolioPage() {
   const handleAddTechnology = async () => {
     if (!newTechName.trim()) return;
     try {
-      const res = await adminFetch(`${API_BASE}/api/admin/project-metadata/`, {
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add_technology', name: newTechName })
@@ -179,7 +179,7 @@ export default function AdminPortfolioPage() {
         showMsg('success', res.message);
         setNewTechName('');
         // Reload technologies
-        const metaRes = await adminFetch(`${API_BASE}/api/admin/project-metadata/`);
+        const metaRes = await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`);
         setTechnologies(metaRes?.technologies || []);
       } else if (res?.error) {
         showMsg('error', res.error);
@@ -192,13 +192,13 @@ export default function AdminPortfolioPage() {
   const handleDeleteCategory = async (id: number) => {
     if (!confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/admin/project-metadata/`, {
+      await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_category', id })
       });
       showMsg('success', 'دسته‌بندی حذف شد');
-      const metaRes = await adminFetch(`${API_BASE}/api/admin/project-metadata/`);
+      const metaRes = await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`);
       setCategories(metaRes?.categories || []);
     } catch (err: any) {
       showMsg('error', err?.message || 'خطا در حذف دسته‌بندی');
@@ -208,13 +208,13 @@ export default function AdminPortfolioPage() {
   const handleDeleteTechnology = async (id: number) => {
     if (!confirm('آیا از حذف این تکنولوژی اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/api/admin/project-metadata/`, {
+      await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_technology', id })
       });
       showMsg('success', 'تکنولوژی حذف شد');
-      const metaRes = await adminFetch(`${API_BASE}/api/admin/project-metadata/`);
+      const metaRes = await adminFetch(`${API_BASE}/api/v1/admin/project-metadata/`);
       setTechnologies(metaRes?.technologies || []);
     } catch (err: any) {
       showMsg('error', err?.message || 'خطا در حذف تکنولوژی');

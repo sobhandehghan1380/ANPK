@@ -1,20 +1,17 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { getPortalInvoices, requestPayment } from '@/lib/api';
-import { FileText, Download, ChevronDown, CheckCircle2, AlertCircle } from 'lucide-react';
+import { getPortalInvoices, payInvoiceWithWallet, requestPayment } from '@/lib/api';
+import { FileText, Download, ChevronDown, WalletCards, Loader2 } from 'lucide-react';
 
 export default function ClientInvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<number | null>(null);
+  const [paying, setPaying] = useState<{ invoiceId: number; method: 'online' | 'wallet' } | null>(null);
 
   const loadData = async () => {
-    const phone = localStorage.getItem('anpk_client_phone') || '';
-    if(!phone) return;
     try {
-      const res = await getPortalInvoices(phone);
+      const res = await getPortalInvoices();
       setInvoices(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error(err);
@@ -25,6 +22,7 @@ export default function ClientInvoicesPage() {
 
   
   const handlePayOnline = async (invoiceId: number) => {
+    setPaying({ invoiceId, method: 'online' });
     try {
       const res = await requestPayment(invoiceId);
       if (res && res.payment_url) {
@@ -34,6 +32,21 @@ export default function ClientInvoicesPage() {
       }
     } catch (e) {
       alert('خطای شبکه. دوباره تلاش کنید.');
+    } finally {
+      setPaying(null);
+    }
+  };
+
+  const handlePayWithWallet = async (invoiceId: number) => {
+    setPaying({ invoiceId, method: 'wallet' });
+    try {
+      const res = await payInvoiceWithWallet(invoiceId);
+      await loadData();
+      alert(res?.message || 'فاکتور با موفقیت از کیف پول پرداخت شد.');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'پرداخت از کیف پول انجام نشد.');
+    } finally {
+      setPaying(null);
     }
   };
 
@@ -43,8 +56,9 @@ export default function ClientInvoicesPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'unpaid': return <span className="px-2 py-1 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded text-[10px] font-bold">پرداخت نشده</span>;
+      case 'pending': return <span className="px-2 py-1 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded text-[10px] font-bold">در انتظار پرداخت</span>;
       case 'paid': return <span className="px-2 py-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded text-[10px] font-bold">پرداخت شده</span>;
+      case 'cancelled': return <span className="px-2 py-1 bg-slate-500/10 text-slate-500 border border-slate-500/20 rounded text-[10px] font-bold">لغو شده</span>;
       default: return <span className="px-2 py-1 bg-slate-500/10 text-slate-500 border border-slate-500/20 rounded text-[10px] font-bold">{status}</span>;
     }
   };
@@ -81,6 +95,7 @@ export default function ClientInvoicesPage() {
                     <span className="text-slate-300 dark:text-slate-700">|</span>
                     <span className="font-mono">{inv.created_at}</span>
                   </div>
+                  {inv.project_name && <div className="text-[10px] font-bold text-brand-500">پروژه: {inv.project_name}</div>}
                 </div>
                 
                 <div className="flex items-center gap-3">
@@ -129,12 +144,37 @@ export default function ClientInvoicesPage() {
                     </div>
                     
                     {inv.status === 'pending' ? (
-                      <button 
-                        onClick={() => handlePayOnline(inv.id)}
-                        className="px-6 py-2.5 bg-brand-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/30 hover:bg-brand-600 transition-colors w-full sm:w-auto"
-                      >
-                        پرداخت آنلاین صورتحساب
-                      </button>
+                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                        {inv.can_pay_with_wallet && (
+                          <button
+                            type="button"
+                            disabled={paying?.invoiceId === inv.id}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handlePayWithWallet(inv.id);
+                            }}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/10 px-5 py-2.5 text-sm font-bold text-brand-600 transition-colors hover:bg-brand-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:text-brand-400 sm:w-auto"
+                          >
+                            {paying?.invoiceId === inv.id && paying?.method === 'wallet' ? <Loader2 className="h-4 w-4 animate-spin" /> : <WalletCards className="h-4 w-4" />}
+                            پرداخت از کیف پول
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={paying?.invoiceId === inv.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handlePayOnline(inv.id);
+                          }}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        >
+                          {paying?.invoiceId === inv.id && paying?.method === 'online' && <Loader2 className="h-4 w-4 animate-spin" />}
+                          پرداخت آنلاین
+                        </button>
+                        {inv.invoice_type === 'wallet_recharge' && (
+                          <span className="self-center text-[11px] text-slate-500">شارژ کیف پول فقط با پرداخت آنلاین یا بانکی انجام می‌شود.</span>
+                        )}
+                      </div>
                     ) : (
                       <button className="px-6 py-2.5 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors w-full sm:w-auto">
                         <Download className="w-4 h-4" />

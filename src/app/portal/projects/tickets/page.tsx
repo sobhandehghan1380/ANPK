@@ -1,11 +1,13 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { getPortalTickets, managePortalTicket, replyTicket } from '@/lib/api';
+import { getPortalTickets, managePortalTicket, replyTicket, getClientProjects } from '@/lib/api';
 import { LifeBuoy, AlertCircle, CheckCircle2, Send, User, Reply } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 export default function ClientTicketsPage() {
   const [tickets, setTickets] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [newProjectId, setNewProjectId] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -18,10 +20,8 @@ export default function ClientTicketsPage() {
   const [isCreating, setIsCreating] = useState(false);
 
   const loadData = async () => {
-    const phone = localStorage.getItem('anpk_client_phone') || '';
-    if(!phone) return;
     try {
-      const res = await getPortalTickets(phone);
+      const res = await getPortalTickets(selectedProjectId || undefined);
       setTickets(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error(err);
@@ -32,12 +32,17 @@ export default function ClientTicketsPage() {
 
   useEffect(() => {
     loadData();
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    getClientProjects()
+      .then((res) => setProjects(Array.isArray(res) ? res : []))
+      .catch((err) => console.error(err));
   }, []);
 
   const handleReply = async (id: number) => {
     if(!replyText.trim()) return;
     setSubmitting(true);
-    const phone = localStorage.getItem('anpk_client_phone') || '';
     try {
       const res = await replyTicket(id, replyText);
       if (res?.message) {
@@ -54,15 +59,15 @@ export default function ClientTicketsPage() {
   };
   
   const handleCreate = async () => {
-    if(!newSubject.trim() || !newMessage.trim()) return;
+    if(!newProjectId || !newSubject.trim() || !newMessage.trim()) return;
     setSubmitting(true);
-    const phone = localStorage.getItem('anpk_client_phone') || '';
     try {
-      const res = await managePortalTicket({ subject: newSubject, message: newMessage }, phone);
+      const res = await managePortalTicket({ project_id: newProjectId, subject: newSubject, message: newMessage });
       if (res?.message) {
         setSuccessMsg('تیکت شما با موفقیت ثبت شد.');
         setNewSubject('');
         setNewMessage('');
+        setNewProjectId('');
         setIsCreating(false);
         loadData();
       }
@@ -100,12 +105,23 @@ export default function ClientTicketsPage() {
         </button>
       </div>
 
+      <div className="flex justify-end">
+        <select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className="w-full sm:w-72 p-3 rounded-xl bg-white dark:bg-slate-900 border dark:border-slate-700 border-slate-200 text-xs font-bold">
+          <option value="">همه پروژه‌ها</option>
+          {projects.map(project => <option key={project.id} value={project.id}>{project.title}</option>)}
+        </select>
+      </div>
+
       {successMsg && <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs font-bold flex items-center gap-2"><CheckCircle2 className="w-4 h-4" />{successMsg}</div>}
       {errorMsg && <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs font-bold flex items-center gap-2"><AlertCircle className="w-4 h-4" />{errorMsg}</div>}
 
       {isCreating && (
         <div className="bg-white dark:bg-slate-900 border dark:border-slate-800 border-slate-200 rounded-2xl p-6 space-y-4">
           <h3 className="font-bold text-slate-800 dark:text-white">تیکت جدید</h3>
+          <select required value={newProjectId} onChange={e => setNewProjectId(e.target.value)} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 text-sm focus:outline-none focus:border-brand-500">
+            <option value="">انتخاب پروژه...</option>
+            {projects.map(project => <option key={project.id} value={project.id}>{project.title}</option>)}
+          </select>
           <input type="text" placeholder="موضوع درخواست" value={newSubject} onChange={e=>setNewSubject(e.target.value)} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 text-sm focus:outline-none focus:border-brand-500" />
           <textarea placeholder="شرح دقیق درخواست یا مشکل..." value={newMessage} onChange={e=>setNewMessage(e.target.value)} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 text-sm h-32 focus:outline-none focus:border-brand-500 resize-none"></textarea>
           <div className="flex justify-end gap-2">
@@ -131,6 +147,8 @@ export default function ClientTicketsPage() {
                     {getStatusBadge(t.status)}
                   </div>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
+                    <span className="font-bold text-brand-500">{t.project_name}</span>
+                    <span>|</span>
                     <span className="font-mono">{t.date}</span>
                   </div>
                 </div>

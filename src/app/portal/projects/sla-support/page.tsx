@@ -2,23 +2,32 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getPortalOverview, getTickets } from '@/lib/api';
-import { ShieldCheck, Clock, CheckCircle2, PhoneCall, AlertTriangle, FileText, Calendar, ShieldAlert, Rocket } from 'lucide-react';
+import { getSLAContracts, getPortalTickets, getClientProjects } from '@/lib/api';
+import { ShieldCheck, Clock, CheckCircle2, PhoneCall, FileText, ShieldAlert, Rocket } from 'lucide-react';
 
 export default function PortalSLASupportPage() {
-  const [data, setData] = useState<any>(null);
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    getClientProjects()
+      .then((res) => setProjects(Array.isArray(res) ? res : []))
+      .catch((err) => console.error(err));
+  }, []);
+
+  useEffect(() => {
     async function fetchData() {
+      setLoading(true);
       try {
-        const [overviewRes, ticketsRes] = await Promise.all([
-          getPortalOverview(),
-          getTickets()
+        const [slaRes, ticketsRes] = await Promise.all([
+          getSLAContracts(selectedProjectId || undefined),
+          getPortalTickets(selectedProjectId || undefined)
         ]);
-        setData(overviewRes);
-        setTickets(ticketsRes);
+        setContracts(Array.isArray(slaRes) ? slaRes : []);
+        setTickets(Array.isArray(ticketsRes) ? ticketsRes : []);
       } catch (err) {
         console.error('Error loading SLA support data from Django backend:', err);
       } finally {
@@ -26,7 +35,7 @@ export default function PortalSLASupportPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [selectedProjectId]);
 
   if (loading) {
     return (
@@ -39,11 +48,11 @@ export default function PortalSLASupportPage() {
     );
   }
 
-  const activeProjectsCount = data?.active_projects_count || 0;
-  const hasActiveSLA = data?.has_active_sla && activeProjectsCount > 0;
-  const slaRemainingDays = hasActiveSLA ? (data?.sla_days_remaining || 0) : 0;
-  const clientName = data?.client_name || 'حساب کاربری جدید';
-  const slaPlanName = hasActiveSLA ? (data?.sla_plan_name || 'پشتیبانی طلایی SLA ۲۴/۷') : 'فاقد قرارداد پشتیبانی فعال';
+  const activeContracts = contracts.filter(contract => contract.is_active);
+  const primaryContract = activeContracts[0];
+  const hasActiveSLA = Boolean(primaryContract);
+  const slaRemainingDays = primaryContract?.remaining_days || 0;
+  const slaPlanName = primaryContract?.plan_name || 'فاقد قرارداد پشتیبانی فعال';
 
   return (
     <div className="space-y-8 animate-fade-in text-right">
@@ -58,6 +67,13 @@ export default function PortalSLASupportPage() {
         </p>
       </div>
 
+      <div className="flex justify-end">
+        <select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className="w-full sm:w-80 p-3 rounded-xl bg-white dark:bg-slate-900 border dark:border-slate-700 border-slate-200 text-xs font-bold">
+          <option value="">همه پروژه‌ها</option>
+          {projects.map(project => <option key={project.id} value={project.id}>{project.title}</option>)}
+        </select>
+      </div>
+
       {/* Main SLA Contract Stats Banner */}
       {hasActiveSLA ? (
         <div className="p-6 sm:p-8 rounded-3xl dark:bg-slate-900 bg-white border dark:border-slate-800 border-slate-200 shadow-2xl relative overflow-hidden text-right">
@@ -69,7 +85,10 @@ export default function PortalSLASupportPage() {
                 سطح قرارداد فعال
               </span>
               <h2 className="text-xl font-black dark:text-white text-slate-900">{slaPlanName}</h2>
-              <p className="text-xs dark:text-slate-400 text-slate-600">مالک قرارداد: {clientName}</p>
+              <p className="text-xs dark:text-slate-400 text-slate-600">پروژه: {primaryContract.project_name}</p>
+              <p className="text-[10px] dark:text-slate-500 text-slate-500">
+                {primaryContract.subscription_id ? `اشتراک: #${primaryContract.subscription_id}` : 'قرارداد قدیمی منتقل‌شده به پروژه'}
+              </p>
             </div>
 
             <div className="space-y-1 text-center md:text-right border-b md:border-b-0 md:border-l dark:border-slate-800 border-slate-200 pb-4 md:pb-0 md:pl-6">
@@ -125,8 +144,8 @@ export default function PortalSLASupportPage() {
             <span className="text-xs font-bold">زمان پاسخگویی باگ بحرانی</span>
             <Clock className="w-4 h-4" />
           </div>
-          <span className="text-xl font-black dark:text-white text-slate-900 block">کمتر از ۱۵ دقیقه</span>
-          <p className="text-[11px] dark:text-slate-400 text-slate-600">رسیدگی به قطع سرویس‌های لایو</p>
+          <span className="text-xl font-black dark:text-white text-slate-900 block">{primaryContract ? `${primaryContract.response_time_minutes} دقیقه` : '—'}</span>
+          <p className="text-[11px] dark:text-slate-400 text-slate-600">حداکثر زمان پاسخ اولیه ثبت‌شده در قرارداد</p>
         </div>
 
         <div className="p-6 rounded-2xl glass-card border dark:border-slate-800 border-slate-200 space-y-2">
@@ -134,17 +153,17 @@ export default function PortalSLASupportPage() {
             <span className="text-xs font-bold">پایداری کلود سرورها</span>
             <CheckCircle2 className="w-4 h-4" />
           </div>
-          <span className="text-xl font-black dark:text-white text-slate-900 block">۹۹.۹٪ تضمین شده</span>
+          <span className="text-xl font-black dark:text-white text-slate-900 block">{primaryContract ? `${primaryContract.availability_percentage}٪` : '—'}</span>
           <p className="text-[11px] dark:text-slate-400 text-slate-600">ضمانت جبران خسارت قطعی با شارژ کیف پول</p>
         </div>
 
         <div className="p-6 rounded-2xl glass-card border dark:border-slate-800 border-slate-200 space-y-2">
           <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
-            <span className="text-xs font-bold">آپدیت امنیتی & پچ خودکار</span>
+            <span className="text-xs font-bold">رفع خطای بحرانی</span>
             <FileText className="w-4 h-4" />
           </div>
-          <span className="text-xl font-black dark:text-white text-slate-900 block">هفتگی و بدون قطعی</span>
-          <p className="text-[11px] dark:text-slate-400 text-slate-600">مانیتورینگ سنسورها و فریم‌ورک‌ها</p>
+          <span className="text-xl font-black dark:text-white text-slate-900 block">{primaryContract ? `${primaryContract.resolution_time_hours} ساعت` : '—'}</span>
+          <p className="text-[11px] dark:text-slate-400 text-slate-600">پوشش پشتیبانی: {primaryContract?.support_schedule || '—'}</p>
         </div>
       </div>
 
@@ -161,6 +180,7 @@ export default function PortalSLASupportPage() {
               <div key={t.id} className="p-4 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-800 border-slate-200 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold dark:text-white text-slate-900 block">{t.subject}</span>
+                  <span className="text-[10px] text-brand-500 block">پروژه: {t.project_name}</span>
                   <span className="text-[10px] dark:text-slate-400 text-slate-500 font-mono">کد پیگیری: #{t.id}</span>
                 </div>
                 <span className="text-xs font-bold text-sky-600 dark:text-sky-400">{t.status}</span>

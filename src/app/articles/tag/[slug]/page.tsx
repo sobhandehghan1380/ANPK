@@ -8,11 +8,12 @@ import { ScrollReveal } from '@/components/ScrollReveal';
 import { Tag, ChevronRight } from 'lucide-react';
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const tagName = params.slug.replace(/-/g, ' ');
+  const { slug } = await params;
+  const tagName = slug.replace(/-/g, ' ');
   
   return {
     title: `مقالات برچسب ${tagName} | پایگاه دانش ANPK`,
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function TagArticlesPage({ params }: Props) {
+  const { slug } = await params;
   const articles = await getArticles();
   
   // Filter articles by tag slug
@@ -28,7 +30,7 @@ export default async function TagArticlesPage({ params }: Props) {
     if (!a.tags || !Array.isArray(a.tags)) return false;
     return a.tags.some((t: string) => {
       const tagSlug = t.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      return tagSlug === params.slug || t.toLowerCase() === params.slug.replace(/-/g, ' ');
+      return tagSlug === slug || t.toLowerCase() === slug.replace(/-/g, ' ');
     });
   });
 
@@ -38,8 +40,8 @@ export default async function TagArticlesPage({ params }: Props) {
 
   const tagName = tagArticles[0]?.tags?.find((t: string) => {
     const tagSlug = t.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    return tagSlug === params.slug || t.toLowerCase() === params.slug.replace(/-/g, ' ');
-  }) || params.slug.replace(/-/g, ' ');
+    return tagSlug === slug || t.toLowerCase() === slug.replace(/-/g, ' ');
+  }) || slug.replace(/-/g, ' ');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-10 overflow-x-hidden">

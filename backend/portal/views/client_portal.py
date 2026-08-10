@@ -1,37 +1,93 @@
-import random
 import logging
+import secrets
+import uuid
+from datetime import timedelta
+from urllib.parse import urlencode
+from django.conf import settings
+from django.core import signing
 from django.db import models
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.auth import get_user_model, authenticate
-from rest_framework_simplejwt.tokens import RefreshToken
-from portal.models import (
-    ClientOrganization, Wallet, WalletTransaction, Invoice, InvoiceItem, SLASupportContract,
-    SupportTicket, TicketReply, APIKey, SMSLog, SMSOTPCode
-)
+from accounts.models import Organization as ClientOrganization
+from billing.models import Invoice, InvoiceItem, Wallet, WalletTransaction
+from billing.services import BillingError, settle_invoice
+from integrations.models import APIKey, SMSLog
+from support.models import InAppNotification, SLASupportContract, SupportTicket, TicketReply
 from services.models import AILog, SystemNodeStatus
+from accounts.selectors import get_current_member
 
-User = get_user_model()
 logger = logging.getLogger('portal')
 
 
 # ─────────────────────────────────────────────────────────────
-# ADMIN JWT LOGIN — احراز هویت ادمین با نام‌کاربری و رمز عبور
+# CLIENT PORTAL AUTH — احراز هویت اعضای سازمان با OTP + JWT
 # ─────────────────────────────────────────────────────────────
 
 from portal.views.utils import clean_persian_text
 
-def get_client_by_request(request):
-    phone = request.GET.get('phone') or request.headers.get('X-User-Phone')
-    if not phone:
-        return None
-    phone_clean = phone.strip().replace('+98', '0')
-    return ClientOrganization.objects.filter(phone__icontains=phone_clean).first()
+
+def build_payment_response(invoice):
+    if not settings.PAYMENT_MOCK_ENABLED:
+        return Response(
+            {'error': 'درگاه پرداخت عملیاتی هنوز پیکربندی نشده است.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    authority = signing.dumps(
+        {
+            'invoice_id': invoice.id,
+            'client_id': invoice.client_id,
+            'nonce': secrets.token_hex(16),
+        },
+        salt='portal-payment',
+        compress=True,
+    )
+    query = urlencode({
+        'authority': authority,
+        'amount': invoice.total_amount,
+        'invoice': invoice.id,
+    })
+    return Response({
+        'authority': authority,
+        'payment_url': f"{settings.FRONTEND_URL}/portal/finance/payment/gateway?{query}",
+        'invoice_id': invoice.id,
+        'message': 'در حال انتقال به درگاه پرداخت آزمایشی...',
+    })
+
+
+def _unauthorized():
+    return Response({'error': 'دسترسی غیرمجاز. لطفاً مجدداً وارد پورتال شوید.'}, status=status.HTTP_403_FORBIDDEN)
+
+
+def serialize_sla_contract(contract):
+    return {
+        'id': contract.id,
+        'project_id': contract.project_id,
+        'project_name': contract.project.title if contract.project else 'SLA قدیمی بدون پروژه',
+        'subscription_id': contract.subscription_id,
+        'plan_name': contract.plan_name,
+        'start_date': contract.start_date.strftime('%Y/%m/%d') if contract.start_date else '',
+        'duration_months': contract.duration_months,
+        'remaining_days': contract.remaining_days,
+        'support_schedule': contract.support_schedule,
+        'response_time_minutes': contract.response_time_minutes,
+        'resolution_time_hours': contract.resolution_time_hours,
+        'availability_percentage': str(contract.availability_percentage),
+        'is_active': contract.is_active,
+    }
+
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def portal_overview(request):
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
     # Fetch live system node status
     nodes = SystemNodeStatus.objects.filter(is_active=True)
     if not nodes.exists():
@@ -48,38 +104,21 @@ def portal_overview(request):
         'latency': n.latency_ms
     } for n in nodes]
 
-    client = get_client_by_request(request)
-    if not client:
-        return Response({
-            'client_name': 'حساب شخصی / کاربر جدید',
-            'contact_person': 'کاربر پورتال',
-            'phone': request.GET.get('phone', ''),
-            'wallet_balance': 0,
-            'sla_days_remaining': 0,
-            'sla_plan_name': 'فاقد قرارداد پشتیبانی SLA',
-            'has_active_sla': False,
-            'active_projects_count': 0,
-            'tickets_count': 0,
-            'ai_rate': 240,
-            'nodes': [],
-            'projects': []
-        })
-
     wallet, _ = Wallet.objects.get_or_create(client=client)
-    
+
     # Check if client has active contract projects
     active_projects = client.contract_projects.filter(is_active=True)
     projects_count = active_projects.count()
 
-    if projects_count > 0:
-        sla, _ = SLASupportContract.objects.get_or_create(client=client)
-        sla_days = sla.remaining_days
-        sla_plan = sla.plan_name
-        has_sla = True
-    else:
-        sla_days = 0
-        sla_plan = 'فاقد قرارداد پشتیبانی SLA'
-        has_sla = False
+    sla_contracts = list(
+        SLASupportContract.objects.select_related('project', 'subscription')
+        .filter(client=client, project__in=active_projects, is_active=True)
+        .order_by('start_date', 'id')
+    )
+    primary_sla = min(sla_contracts, key=lambda item: item.remaining_days) if sla_contracts else None
+    sla_days = primary_sla.remaining_days if primary_sla else 0
+    sla_plan = primary_sla.plan_name if primary_sla else 'فاقد قرارداد پشتیبانی SLA'
+    has_sla = bool(primary_sla)
 
     tickets_count = client.tickets.count()
 
@@ -103,36 +142,58 @@ def portal_overview(request):
         'tickets_count': tickets_count,
         'ai_rate': 240,
         'nodes': nodes_data if projects_count > 0 else [],
-        'projects': projects_data
+        'projects': projects_data,
+        'sla_contracts': [serialize_sla_contract(contract) for contract in sla_contracts],
+        'member': {
+            'id': member.id,
+            'name': member.full_name,
+            'role': member.role,
+            'role_label': member.get_role_display(),
+            'phone': member.phone,
+            'organization_name': client.name,
+        }
     })
 
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def wallet_details(request):
-    client = get_client_by_request(request)
-    if not client:
-        phone = request.GET.get('phone') or request.data.get('phone', '09131518904')
-        client, _ = ClientOrganization.objects.get_or_create(phone=phone, defaults={'name': 'سازمان کاربر جدید', 'contact_person': 'کاربر پورتال'})
-    
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
     wallet, _ = Wallet.objects.get_or_create(client=client)
 
     if request.method == 'POST':
-        amount = int(request.data.get('amount', 5000000))
+        try:
+            amount = int(request.data.get('amount', 0))
+        except (TypeError, ValueError):
+            return Response({'error': 'مبلغ واردشده معتبر نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if amount < 10000 or amount > 1_000_000_000:
+            return Response(
+                {'error': 'مبلغ شارژ باید بین ۱۰ هزار تا یک میلیارد تومان باشد.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         description = request.data.get('description', 'شارژ آنلاین کیف پول سازمان')
-        
-        wallet.balance += amount
-        wallet.save()
-
-        WalletTransaction.objects.create(
-            wallet=wallet,
-            transaction_type='CHARGE',
+        invoice = Invoice.objects.create(
+            client=client,
+            invoice_type='wallet_recharge',
+            description=description,
+            invoice_number=f"WLT-{timezone.now():%Y%m%d}-{uuid.uuid4().hex[:10].upper()}",
             amount=amount,
-            description=description
+            total_amount=amount,
+            due_date=timezone.localdate() + timedelta(days=1),
         )
-
-        return Response({
-            'message': 'کیف پول سازمان با موفقیت شارژ گردید.',
-            'new_balance': wallet.balance
-        })
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            title=description,
+            quantity=1,
+            unit_price=amount,
+            total_price=amount,
+        )
+        return build_payment_response(invoice)
 
     transactions = WalletTransaction.objects.filter(wallet=wallet).order_by('-created_at')
 
@@ -150,10 +211,28 @@ def wallet_details(request):
     return Response(data)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def ai_usage_logs(request):
-    logs = AILog.objects.all().order_by('-created_at')
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
+    logs = AILog.objects.filter(project__client=client)
+    project_id = request.query_params.get('project_id')
+    if project_id:
+        logs = logs.filter(project_id=project_id)
+    logs = logs.select_related('project').order_by('-created_at')
     data = [{
         'id': log.id,
+        'project_id': log.project_id,
+        'project_name': log.project.title if log.project else None,
+        'user_query': clean_persian_text(log.user_query, 'کوئری پردازش هوش مصنوعی'),
+        'ai_response': clean_persian_text(log.ai_response, 'پاسخ استخراج داده‌ها'),
+        'model_used': log.model_used,
+        'cost_deducted': log.cost_deducted,
+        'created_at': log.created_at.isoformat(),
+        # Compatibility aliases for older portal clients.
         'query': clean_persian_text(log.user_query, 'کوئری پردازش هوش مصنوعی'),
         'response': clean_persian_text(log.ai_response, 'پاسخ استخراج داده‌ها'),
         'model': log.model_used,
@@ -163,76 +242,111 @@ def ai_usage_logs(request):
     return Response(data)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def invoices_list(request):
-    client = get_client_by_request(request)
-    if not client:
-        return Response([])
-    
-    invoices = Invoice.objects.filter(client=client).prefetch_related('items').order_by('-created_at')
-    
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
+    invoices = Invoice.objects.filter(client=client).select_related('project', 'subscription').prefetch_related('items').order_by('-created_at')
+
     data = [{
         'id': inv.id,
         'invoice_number': inv.invoice_number,
-        'title': clean_persian_text(inv.title, 'صورتحساب خدمات'),
+        'project_id': inv.project_id,
+        'project_name': inv.project.title if inv.project else None,
+        'subscription_id': inv.subscription_id,
+        'invoice_type': inv.invoice_type,
+        'can_pay_with_wallet': member.role == 'OWNER' and inv.status == 'pending' and inv.invoice_type != 'wallet_recharge',
+        'title': clean_persian_text(inv.description, 'صورتحساب خدمات'),
         'total_amount': inv.total_amount,
         'tax_amount': inv.tax_amount,
         'status': inv.status,
         'due_date': inv.due_date.strftime('%Y/%m/%d') if inv.due_date else '',
         'created_at': inv.created_at.strftime('%Y/%m/%d'),
         'items': [{
-            'description': item.description,
+            'description': item.title,
             'quantity': item.quantity,
             'unit_price': item.unit_price,
             'total_price': item.total_price
         } for item in inv.items.all()]
     } for inv in invoices]
-    
+
     return Response(data)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def sla_contracts_list(request):
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+
+    contracts = SLASupportContract.objects.select_related('project', 'subscription').filter(
+        client=member.organization,
+    )
+    project_id = request.query_params.get('project_id')
+    if project_id:
+        contracts = contracts.filter(project_id=project_id)
+    return Response([serialize_sla_contract(contract) for contract in contracts.order_by('-start_date', '-id')])
+
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def api_keys_list(request):
-    client = get_client_by_request(request)
-    if not client:
-        phone = request.GET.get('phone') or '09131518904'
-        client, _ = ClientOrganization.objects.get_or_create(phone=phone, defaults={'name': 'سازمان کاربر جدید', 'contact_person': 'کاربر'})
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
 
     if request.method == 'POST':
         name = request.data.get('name', 'کلید پروژه جدید')
-        key_val = f"anpk_proj_{random.randint(100000000, 999999999)}"
-        key_obj = APIKey.objects.create(client=client, name=name, api_key=key_val)
+        if member.role != 'OWNER':
+            return Response(
+                {'error': 'فقط مالک سازمان می‌تواند کلید API جدید ایجاد کند.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        project_id = request.data.get('project_id')
+        project = client.contract_projects.filter(id=project_id, is_active=True).first()
+        if not project:
+            return Response({'error': 'انتخاب پروژه معتبر برای صدور کلید الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+        key_val = f"anpk_live_{secrets.token_urlsafe(32)}"
+        key_obj = APIKey.objects.create(
+            client=client,
+            project=project,
+            name=name,
+            key_type='PROJECT',
+            api_key=key_val,
+        )
         return Response({'message': 'کلید API جدید صادر گردید', 'api_key': key_obj.api_key})
 
-    keys = APIKey.objects.filter(client=client)
+    keys = APIKey.objects.filter(client=client).select_related('project')
     data = [{
         'id': k.id,
         'name': clean_persian_text(k.name, 'کلید اختصاصی سرویس'),
+        'project_id': k.project_id,
+        'project_name': k.project.title if k.project else 'کلید قدیمی بدون پروژه',
         'key_type': k.get_key_type_display(),
-        'api_key': k.api_key,
+        'api_key': f"{k.api_key[:14]}...{k.api_key[-4:]}",
         'is_active': k.is_active,
         'date': k.created_at.strftime('%Y/%m/%d')
     } for k in keys]
     return Response(data)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def sms_logs_list(request):
-    client = get_client_by_request(request)
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
     project_id = request.GET.get('project_id')
-    phone = request.GET.get('phone')
 
-    if not client and not phone:
-        return Response([])
-
-    logs = SMSLog.objects.none()
-
-    if client:
-        client_phone = client.phone if client.phone else ''
-        logs = SMSLog.objects.filter(
-            models.Q(project__client=client) |
-            models.Q(recipient__icontains=client_phone)
-        )
-    elif phone:
-        phone_clean = phone.strip().replace('+98', '0')
-        logs = SMSLog.objects.filter(recipient__icontains=phone_clean)
+    client_phone = client.phone if client.phone else ''
+    logs = SMSLog.objects.filter(
+        models.Q(project__client=client) |
+        models.Q(recipient__icontains=client_phone)
+    )
 
     # Exclude sensitive authentication OTP codes from public portal logs
     logs = logs.exclude(text__icontains='کد تایید')\
@@ -243,32 +357,6 @@ def sms_logs_list(request):
         logs = logs.filter(project_id=project_id)
 
     logs = logs.order_by('-sent_at')
-
-    # If no operational notification SMS logs exist, generate sample operational alerts
-    if not logs.exists() and client:
-        first_proj = client.contract_projects.first()
-        SMSLog.objects.create(
-            project=first_proj,
-            recipient=client.phone or '09131518904',
-            text='هشدار سامانه: فاز ۲ توسعه پروژه با موفقیت مستقر و آماده تست گردید.',
-            operator='همراه اول',
-            cost=75,
-            status='delivered'
-        )
-        SMSLog.objects.create(
-            project=first_proj,
-            recipient=client.phone or '09131518904',
-            text='اطلاع‌رسانی پشتیبانی: تیکت شما به کارشناس ارشد زیرساخت ارجاع داده شد.',
-            operator='همراه اول',
-            cost=75,
-            status='delivered'
-        )
-        logs = SMSLog.objects.filter(
-            models.Q(project__client=client) |
-            models.Q(recipient__icontains=client.phone)
-        ).exclude(text__icontains='کد تایید')\
-         .exclude(text__icontains='OTP')\
-         .exclude(text__icontains='کد ورود').order_by('-sent_at')
 
     data = [{
         'id': log.id,
@@ -283,74 +371,17 @@ def sms_logs_list(request):
     } for log in logs]
     return Response(data)
 
-@api_view(['POST'])
-def send_otp(request):
-    phone = request.data.get('phone', '').strip()
-    if not phone or len(phone) < 10:
-        return Response({'error': 'لطفاً شماره تلفن همراه معتبر وارد نمایید.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    phone_clean = phone.replace('+98', '0')
-
-    client_exists = ClientOrganization.objects.filter(phone__icontains=phone_clean).exists()
-    user_exists = User.objects.filter(username=phone_clean).exists()
-
-    if not client_exists and not user_exists:
-        return Response({
-            'error': 'شماره همراه واردشده در سامانه مشتریان ثبت نگردیده است. لطفاً جهت تعریف حساب با پشتیبانی تماس بگیرید.'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-    code = f"{random.randint(10000, 99999)}"
-    SMSOTPCode.objects.create(phone=phone_clean, code=code)
-
-    SMSLog.objects.create(
-        recipient=phone_clean,
-        text=f"کد تایید ورود به پورتال ANPK: {code}",
-        operator="همراه اول / کاوه نگار",
-        cost=75,
-        status="delivered"
-    )
-
-    return Response({
-        'message': 'کد تایید ۵ رقمی با موفقیت ارسال گردید.',
-        'demo_code': code,
-        'phone': phone_clean
-    })
-
-@api_view(['POST'])
-def verify_otp(request):
-    phone = request.data.get('phone', '').strip().replace('+98', '0')
-    code = request.data.get('code', '').strip()
-
-    if not phone or not code:
-        return Response({'error': 'شماره موبایل و کد تایید ۵ رقمی الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    otp_obj = SMSOTPCode.objects.filter(phone=phone, code=code, is_used=False).last()
-    if not otp_obj:
-        return Response({'error': 'کد تایید واردشده اشتباه است یا منقضی گردیده است.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    client = ClientOrganization.objects.filter(phone__icontains=phone).first()
-    user = User.objects.filter(username=phone).first()
-
-    if not client and not user:
-        return Response({'error': 'حساب کاربری معتبری برای این شماره همراه یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
-
-    otp_obj.is_used = True
-    otp_obj.save()
-
-    client_name = client.name if client else (user.username if user else 'کاربر پورتال')
-
-    return Response({
-        'message': 'ورود پیامکی با موفقیت انجام شد.',
-        'client_name': client_name,
-        'phone': phone
-    })
-
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def tickets_list(request):
-    client = get_client_by_request(request)
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
     if request.method == 'POST':
         action = request.data.get('action')
-        
+
         if action == 'reply_ticket':
             ticket_id = request.data.get('ticket_id')
             message = request.data.get('message')
@@ -358,7 +389,7 @@ def tickets_list(request):
                 ticket = SupportTicket.objects.get(id=ticket_id, client=client)
                 TicketReply.objects.create(
                     ticket=ticket,
-                    sender_name=client.contact_person if client else "مشتری",
+                    sender_name=member.full_name,
                     is_admin=False,
                     message=message
                 )
@@ -368,25 +399,35 @@ def tickets_list(request):
                 return Response({'message': 'پاسخ شما ارسال شد.'})
             except SupportTicket.DoesNotExist:
                 return Response({'error': 'تیکت یافت نشد.'}, status=400)
-                
+
         # default create ticket
+        project_id = request.data.get('project_id')
+        if not project_id:
+            return Response({'error': 'انتخاب پروژه برای ثبت تیکت الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+        project = client.contract_projects.filter(id=project_id, is_active=True).first()
+        if not project:
+            return Response({'error': 'پروژه انتخاب‌شده یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
         subject = request.data.get('subject')
         message = request.data.get('message')
         ticket = SupportTicket.objects.create(
             client=client,
-            client_name=client.name if client else request.data.get('client_name', 'کاربر پورتال'),
+            project=project,
+            client_name=client.name,
             subject=subject,
             message=message
         )
         return Response({'message': 'تیکت پشتیبانی ثبت شد', 'id': ticket.id})
 
-    if client:
-        tickets = SupportTicket.objects.filter(client=client).prefetch_related('replies').order_by('-created_at')
-    else:
-        tickets = SupportTicket.objects.none()
+    tickets = SupportTicket.objects.filter(client=client).select_related('project').prefetch_related('replies')
+    project_id = request.query_params.get('project_id')
+    if project_id:
+        tickets = tickets.filter(project_id=project_id)
+    tickets = tickets.order_by('-created_at')
 
     data = [{
         'id': t.id,
+        'project_id': t.project_id,
+        'project_name': t.project.title if t.project else 'تیکت قدیمی بدون پروژه',
         'subject': clean_persian_text(t.subject, 'درخواست پشتیبانی فنی'),
         'message': clean_persian_text(t.message, 'متن تیکت پشتیبانی'),
         'status': t.status,
@@ -407,90 +448,133 @@ def tickets_list(request):
 # ─────────────────────────────────────────────────────────────
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def request_payment(request):
-    client = get_client_by_request(request)
-    if not client:
-        return Response({'error': 'Client not found'}, status=404)
-        
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
     invoice_id = request.data.get('invoice_id')
     try:
         invoice = Invoice.objects.get(id=invoice_id, client=client)
     except Invoice.DoesNotExist:
         return Response({'error': 'Invoice not found'}, status=404)
-        
-    if invoice.status == 'paid':
-        return Response({'error': 'Invoice is already paid'}, status=400)
-        
-    # Mocking IPG Request
-    import os
-    frontend_url = os.getenv('NEXT_PUBLIC_API_URL') or os.getenv('FRONTEND_URL') or 'http://localhost:3000'
-    authority = f"A{random.randint(100000000000, 999999999999)}"
-    payment_url = f"{frontend_url}/portal/finance/payment/gateway?authority={authority}&amount={invoice.total_amount}&invoice={invoice.id}"
-    
+
+    if invoice.status != 'pending':
+        return Response({'error': 'فقط فاکتور در انتظار پرداخت قابل ارسال به درگاه است.'}, status=400)
+
+    return build_payment_response(invoice)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def pay_invoice_with_wallet(request):
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    if member.role != 'OWNER':
+        return Response(
+            {'error': 'فقط مالک سازمان می‌تواند فاکتور را از کیف پول پرداخت کند.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    try:
+        invoice = Invoice.objects.get(id=request.data.get('invoice_id'), client=member.organization)
+    except Invoice.DoesNotExist:
+        return Response({'error': 'فاکتور یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        result = settle_invoice(
+            invoice,
+            payment_method='WALLET',
+            reference_id=f'WALLET-{invoice.invoice_number}',
+            idempotency_key=f'portal-wallet:{invoice.id}',
+        )
+    except BillingError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    wallet = Wallet.objects.get(client=member.organization)
     return Response({
-        'authority': authority,
-        'payment_url': payment_url,
-        'message': 'در حال انتقال به درگاه پرداخت...'
+        'message': 'فاکتور قبلاً پرداخت شده بود.' if result.already_paid else 'فاکتور از کیف پول سازمان پرداخت شد.',
+        'status': 'success',
+        'invoice_id': invoice.id,
+        'wallet_balance': wallet.balance,
+        'reference_id': result.payment.reference_id if result.payment else None,
     })
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def verify_payment(request):
-    client = get_client_by_request(request)
-    if not client:
-        return Response({'error': 'Client not found'}, status=404)
-        
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
     invoice_id = request.data.get('invoice_id')
     authority = request.data.get('authority')
     status_code = request.data.get('status')
-    
+
+    if not authority:
+        return Response({'error': 'شناسه پرداخت الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not settings.PAYMENT_MOCK_ENABLED:
+        return Response(
+            {'error': 'تأیید پرداخت عملیاتی هنوز پیکربندی نشده است.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
     try:
         invoice = Invoice.objects.get(id=invoice_id, client=client)
     except Invoice.DoesNotExist:
         return Response({'error': 'Invoice not found'}, status=404)
-        
-    if status_code == 'OK':
-        # Mark as paid
-        invoice.status = 'paid'
-        invoice.save()
-        
-        # Log payment
-        from portal.models import Payment
-        Payment.objects.create(
-            invoice=invoice,
-            amount=invoice.total_amount,
-            reference_id=authority,
-            status='success'
-        )
-        
-        # If it was a subscription renewal, update it
-        if invoice.invoice_type == 'subscription' and invoice.subscription:
-            import datetime
-            # Extend for 30 days (mock logic for monthly)
-            invoice.subscription.end_date += datetime.timedelta(days=30)
-            invoice.subscription.status = 'active'
-            invoice.subscription.save()
-            
-        # If wallet recharge
-        if invoice.invoice_type == 'wallet_recharge':
-            wallet, _ = Wallet.objects.get_or_create(client=client)
-            wallet.balance += invoice.total_amount
-            wallet.save()
-            
-        return Response({'message': 'پرداخت با موفقیت انجام شد و فاکتور تسویه گردید.', 'reference_id': authority, 'status': 'success'})
-    else:
+
+    if status_code != 'OK':
         return Response({'error': 'پرداخت توسط کاربر لغو شد یا با خطا مواجه گردید.', 'status': 'failed'}, status=400)
+
+    try:
+        payment_claim = signing.loads(
+            authority,
+            salt='portal-payment',
+            max_age=15 * 60,
+        )
+    except signing.BadSignature:
+        return Response({'error': 'شناسه پرداخت نامعتبر یا منقضی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if (
+        payment_claim.get('invoice_id') != invoice.id
+        or payment_claim.get('client_id') != client.id
+    ):
+        return Response({'error': 'اطلاعات پرداخت با فاکتور مطابقت ندارد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        result = settle_invoice(
+            invoice,
+            payment_method='GATEWAY',
+            reference_id=authority,
+            idempotency_key=f'gateway:{authority}',
+        )
+    except BillingError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        'message': 'این پرداخت قبلاً ثبت شده بود.' if result.already_paid else 'پرداخت با موفقیت انجام شد و فاکتور تسویه گردید.',
+        'reference_id': authority,
+        'status': 'success',
+    })
 
 # ─────────────────────────────────────────────────────────────
 # Notifications & Tickets Reply
 # ─────────────────────────────────────────────────────────────
-from portal.models import InAppNotification, TicketReply, SupportTicket
 
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def notifications_list(request):
-    client = get_client_by_request(request)
-    if not client:
-        return Response([])
-        
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
     if request.method == 'POST':
         # Mark as read
         notif_id = request.data.get('id')
@@ -499,37 +583,39 @@ def notifications_list(request):
             n.is_read = True
             n.save()
             return Response({'message': 'خوانده شد'})
-        except:
+        except InAppNotification.DoesNotExist:
             pass
-            
+
     notifs = InAppNotification.objects.filter(client=client).order_by('-created_at')[:20]
     data = [{
         'id': n.id,
         'title': n.title,
         'message': n.message,
         'is_read': n.is_read,
-        'created_at': n.created_at.strftime('%Y-%m-%d %H:%M')
+        'created_at': n.created_at.isoformat()
     } for n in notifs]
     return Response(data)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def reply_ticket(request):
-    client = get_client_by_request(request)
-    if not client:
-        return Response({'error': 'Client not found'}, status=404)
-        
+    member = get_current_member(request)
+    if not member:
+        return _unauthorized()
+    client = member.organization
+
     ticket_id = request.data.get('ticket_id')
     message = request.data.get('message')
-    
+
     try:
         ticket = SupportTicket.objects.get(id=ticket_id, client=client)
         TicketReply.objects.create(
             ticket=ticket,
-            sender_name=client.contact_person,
+            sender_name=member.full_name,
             is_admin=False,
             message=message
         )
-        ticket.status = 'open' # reopen ticket if it was closed
+        ticket.status = 'open'  # reopen ticket if it was closed
         ticket.save()
         return Response({'message': 'پاسخ با موفقیت ارسال شد'})
     except Exception as e:

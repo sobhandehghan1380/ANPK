@@ -6,8 +6,9 @@ import { ArticleComments } from '@/components/ArticleComments';
 import { Clock, Eye, User, Calendar, Tag, ArrowLeft, BookOpen, Rocket, ChevronRight, Hash, Share2, Globe, MessageCircle } from 'lucide-react';
 import { Metadata } from 'next';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const article = await getArticleBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const article = await getArticleBySlug(slug);
   if (!article) return { title: 'مقاله یافت نشد | ANPK' };
   return {
     title: article.meta_title || `${article.title} | پایگاه دانش ANPK`,
@@ -49,8 +50,9 @@ function ArticleSchema({ article }: { article: any }) {
   );
 }
 
-export default async function ArticleDetailPage({ params }: { params: { slug: string } }) {
-  const article = await getArticleBySlug(params.slug);
+export default async function ArticleDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const article = await getArticleBySlug(slug);
   if (!article) notFound();
 
   const coverImg = article.cover_image || article.thumbnail;

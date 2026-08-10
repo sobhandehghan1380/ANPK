@@ -7,8 +7,9 @@ import { ScrollReveal } from '@/components/ScrollReveal';
 import { TiltCard } from '@/components/TiltCard';
 import { Metadata } from 'next';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const project = await getProjectBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const project = await getProjectBySlug(slug);
   if (!project) return { title: 'پروژه یافت نشد' };
   return {
     title: project.metaTitle || `${project.title} | پروژه‌های ارشیا نگین پردازش`,
@@ -16,8 +17,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function ProjectDetailPage({ params }: { params: { slug: string } }) {
-  const project = await getProjectBySlug(params.slug);
+export default async function ProjectDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const project = await getProjectBySlug(slug);
   if (!project) notFound();
 
   const allProjects = await getProjects();

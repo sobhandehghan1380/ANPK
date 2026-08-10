@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { adminFetch } from '@/lib/api';
@@ -21,7 +21,7 @@ export default function BlogAnalyticsPage() {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      const res = await adminFetch(`${API_BASE}/api/admin/blog-analytics/`);
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/blog-analytics/`);
       setData(res);
     } catch (err) {
       console.error('Error loading analytics:', err);
@@ -245,7 +245,7 @@ export default function BlogAnalyticsPage() {
               <MessageCircle className="w-4 h-4 text-brand-500" />
               آخرین نظرات
             </h3>
-            <Link href="/admin/content/comments" className="text-[10px] text-brand-500 hover:underline">
+            <Link href="/admin/blog/comments" className="text-[10px] text-brand-500 hover:underline">
               مشاهده همه
             </Link>
           </div>
@@ -281,19 +281,19 @@ export default function BlogAnalyticsPage() {
       <div className="glass-card rounded-2xl p-5 border dark:border-slate-800">
         <h3 className="text-sm font-bold mb-4">دسترسی سریع</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Link href="/admin/content/articles/create" className="p-3 rounded-xl bg-brand-500/10 text-brand-500 hover:bg-brand-500 hover:text-white transition-all text-center space-y-2">
+          <Link href="/admin/blog/articles/create" className="p-3 rounded-xl bg-brand-500/10 text-brand-500 hover:bg-brand-500 hover:text-white transition-all text-center space-y-2">
             <BookOpen className="w-5 h-5 mx-auto" />
             <span className="text-xs font-bold block">مقاله جدید</span>
           </Link>
-          <Link href="/admin/content/comments" className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all text-center space-y-2">
+          <Link href="/admin/blog/comments" className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all text-center space-y-2">
             <MessageCircle className="w-5 h-5 mx-auto" />
             <span className="text-xs font-bold block">مدیریت نظرات</span>
           </Link>
-          <Link href="/admin/content/tags" className="p-3 rounded-xl bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white transition-all text-center space-y-2">
+          <Link href="/admin/blog/tags" className="p-3 rounded-xl bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white transition-all text-center space-y-2">
             <Tag className="w-5 h-5 mx-auto" />
             <span className="text-xs font-bold block">برچسب‌ها</span>
           </Link>
-          <Link href="/admin/content/articles" className="p-3 rounded-xl bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all text-center space-y-2">
+          <Link href="/admin/blog/articles" className="p-3 rounded-xl bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all text-center space-y-2">
             <FolderOpen className="w-5 h-5 mx-auto" />
             <span className="text-xs font-bold block">لیست مقالات</span>
           </Link>

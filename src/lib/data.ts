@@ -1,5 +1,18 @@
 import { fetchProducts, fetchSolutions, fetchArticles, fetchProjects, getHeroData as getHeroDataFromAPI } from './api';
 
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split('\n').map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 export async function getHeroData() {
   try {
     const data = await getHeroDataFromAPI();
@@ -15,13 +28,15 @@ export async function getProducts(includeDraft = false) {
     const products = await fetchProducts();
     return products.map((p: any) => {
       // Parse features_list into array
-      const features = p.features_list 
-        ? p.features_list.split('\n').filter((f: string) => f.trim())
+      const normalizedFeatures = normalizeStringList(p.features ?? p.features_list);
+      const features = normalizedFeatures.length > 0
+        ? normalizedFeatures
         : ['معماری میکروسرویس', 'انطباق با قوانین امنیتی', 'پشتیبانی SLA ۲۴/۷'];
       
       // Parse technical_specs into workflow
-      const workflow = p.technical_specs
-        ? p.technical_specs.split('\n').filter((s: string) => s.trim()).map((s: string, i: number) => ({
+      const technicalSpecs = normalizeStringList(p.technical_specs);
+      const workflow = technicalSpecs.length > 0
+        ? technicalSpecs.map((s: string, i: number) => ({
             step: String(i + 1).padStart(2, '۰'),
             title: s.trim(),
             desc: s.trim()

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Rocket,
   CheckCircle2,
@@ -144,7 +145,7 @@ export default function StartProjectWizardPage() {
     setErrorMsg('');
 
     try {
-      const response = await fetch('/api/inquiries', {
+      const response = await fetch('/api/v1/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -231,12 +232,12 @@ export default function StartProjectWizardPage() {
                 <Printer className="w-4 h-4" />
                 <span>چاپ یا ذخیره رسید</span>
               </button>
-              <a
+              <Link
                 href="/"
                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-accent-600 hover:from-brand-500 hover:to-accent-500 text-white shadow-md flex items-center gap-2 transition-all"
               >
                 <span>بازگشت به صفحه اصلی</span>
-              </a>
+              </Link>
             </div>
           </div>
         </ScrollReveal>

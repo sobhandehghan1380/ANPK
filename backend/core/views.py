@@ -1,8 +1,10 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from .models import HeroSection, HeroTypewriterItem
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def home_overview(request):
     hero = HeroSection.objects.filter(is_active=True).first()
     if not hero:

@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { getPortalOverview, getNotifications, markNotificationRead } from '@/lib/api';
+import { getPortalOverview, getNotifications, markNotificationRead, clientLogout } from '@/lib/api';
 import {
   Wallet,
   CreditCard,
@@ -21,12 +21,34 @@ import {
   MoreHorizontal,
   LogOut,
   X,
-  Banknote,
-  Code2,
   Bell,
   Check,
+  UserRound,
+  RefreshCw,
+  LoaderCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ScrollReveal } from '@/components/ScrollReveal';
+
+type PortalNotification = {
+  id: number;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+type NotificationStatus = 'loading' | 'success' | 'error';
+
+function formatNotificationDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,45 +58,87 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [clientName, setClientName] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userPhone, setUserPhone] = useState('');
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [memberName, setMemberName] = useState('');
+  const [memberRole, setMemberRole] = useState('');
+  const [memberRoleLabel, setMemberRoleLabel] = useState('');
+  const [memberPhone, setMemberPhone] = useState('');
+  const [notifications, setNotifications] = useState<PortalNotification[]>([]);
+  const [notificationStatus, setNotificationStatus] = useState<NotificationStatus>('loading');
   const [showNotif, setShowNotif] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+
+  const loadNotifications = useCallback(async () => {
+    setNotificationStatus('loading');
+    try {
+      const result = await getNotifications();
+      setNotifications(Array.isArray(result) ? result : []);
+      setNotificationStatus('success');
+    } catch (error) {
+      console.error('Error loading portal notifications:', error);
+      setNotificationStatus('error');
+    }
+  }, []);
 
   useEffect(() => {
-    // Check local storage for authenticated mobile session
-    const loggedIn = localStorage.getItem('anpk_user_logged_in');
-    const phone = localStorage.getItem('anpk_user_phone');
-    if (!loggedIn) {
+    // Check local storage for an authenticated (JWT) client session
+    const token = localStorage.getItem('anpk_client_token');
+    if (!token) {
       router.push('/login');
-    } else {
-      setIsAuthenticated(true);
-      if (phone) setUserPhone(phone);
-
-      // Fetch live portal overview data for top header banner
-      getPortalOverview()
-        .then((res) => {
-          if (res?.wallet_balance !== undefined) setWalletBalance(res.wallet_balance);
-          if (res?.client_name) setClientName(res.client_name);
-        })
-        .catch((err) => console.error('Error loading header portal overview:', err));
-
-      // Fetch Notifications
-      getNotifications().then(res => setNotifications(res));
-
+      return;
     }
-  }, [router]);
 
-  
+    // Fetch live portal overview data for top header banner
+    getPortalOverview()
+      .then((res) => {
+        if (res?.wallet_balance !== undefined) setWalletBalance(res.wallet_balance);
+        if (res?.client_name) setClientName(res.client_name);
+        if (res?.member) {
+          setMemberName(res.member.name || '');
+          setMemberRole(res.member.role || '');
+          setMemberRoleLabel(res.member.role_label || '');
+          setMemberPhone(res.member.phone || '');
+        }
+      })
+      .catch((err) => console.error('Error loading header portal overview:', err))
+      .finally(() => setIsAuthenticated(true));
+
+    const notificationTimer = window.setTimeout(loadNotifications, 0);
+    return () => window.clearTimeout(notificationTimer);
+  }, [loadNotifications, router]);
+
+  useEffect(() => {
+    if (!showNotif) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotif(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowNotif(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [showNotif]);
+
+
   const handleReadNotif = async (id: number) => {
-    await markNotificationRead(id);
-    setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    const notification = notifications.find(item => item.id === id);
+    if (!notification || notification.is_read) return;
+
+    const result = await markNotificationRead(id);
+    if (result) {
+      setNotifications(current => current.map(item => item.id === id ? { ...item, is_read: true } : item));
+    }
   };
 
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('anpk_user_logged_in');
-      localStorage.removeItem('anpk_user_phone');
-    }
+    clientLogout();
     router.push('/login');
   };
 
@@ -89,15 +153,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     );
   }
 
-  const sidebarMenu: Array<{ href: string; label: string; icon: any; activeColor: string; badge?: string }> = [
+  const sidebarMenu: Array<{ href: string; label: string; icon: LucideIcon; activeColor: string; badge?: string }> = [
     { href: '/portal', label: 'داشبورد کلی', icon: Layers, activeColor: 'from-brand-600 to-brand-500' },
     { href: '/portal/projects', label: 'پروژه‌ها', icon: FolderGit2, activeColor: 'from-indigo-600 to-purple-600' },
-    { href: '/portal/wallet', label: 'کیف پول', icon: Wallet, activeColor: 'from-emerald-600 to-teal-600' },
-    { href: '/portal/ai-usage', label: 'مصرف AI', icon: Bot, activeColor: 'from-purple-600 to-pink-600' },
-    { href: '/portal/sms-logs', label: 'پیامک‌ها', icon: Send, activeColor: 'from-sky-600 to-blue-600' },
-    { href: '/portal/invoices', label: 'فاکتورها', icon: CreditCard, activeColor: 'from-amber-600 to-orange-600' },
-    { href: '/portal/sla-support', label: 'پشتیبانی SLA', icon: ShieldCheck, activeColor: 'from-emerald-600 to-teal-600' },
-    { href: '/portal/tickets', label: 'تیکت‌ها', icon: MessageSquare, activeColor: 'from-purple-600 to-indigo-600' },
+    { href: '/portal/finance/wallet', label: 'کیف پول', icon: Wallet, activeColor: 'from-emerald-600 to-teal-600' },
+    { href: '/portal/developer/ai-usage', label: 'مصرف AI', icon: Bot, activeColor: 'from-purple-600 to-pink-600' },
+    { href: '/portal/developer/sms-logs', label: 'پیامک‌ها', icon: Send, activeColor: 'from-sky-600 to-blue-600' },
+    { href: '/portal/finance/invoices', label: 'فاکتورها', icon: CreditCard, activeColor: 'from-amber-600 to-orange-600' },
+    { href: '/portal/projects/sla-support', label: 'پشتیبانی SLA', icon: ShieldCheck, activeColor: 'from-emerald-600 to-teal-600' },
+    { href: '/portal/projects/tickets', label: 'تیکت‌ها', icon: MessageSquare, activeColor: 'from-purple-600 to-indigo-600' },
     { href: '/portal/settings', label: 'تنظیمات', icon: Settings, activeColor: 'from-slate-700 to-slate-800' },
   ];
 
@@ -105,79 +169,112 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const mobileBottomBar = [
     { href: '/portal', label: 'داشبورد', icon: Layers },
     { href: '/portal/projects', label: 'پروژه‌ها', icon: FolderGit2 },
-    { href: '/portal/wallet', label: 'کیف پول', icon: Wallet },
-    { href: '/portal/tickets', label: 'تیکت‌ها', icon: MessageSquare },
+    { href: '/portal/finance/wallet', label: 'کیف پول', icon: Wallet },
+    { href: '/portal/projects/tickets', label: 'تیکت‌ها', icon: MessageSquare },
   ];
 
+  const unreadNotifications = notifications.filter(notification => !notification.is_read).length;
+  const visibleMemberName = memberName || 'کاربر پورتال';
+  const visibleMemberRole = memberRoleLabel || (memberRole === 'OWNER' ? 'مالک سازمان' : 'عضو سازمان');
+  const memberInitial = visibleMemberName.trim().charAt(0) || 'ک';
+
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6 sm:space-y-8 text-right relative overflow-x-hidden pb-24 lg:pb-10">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-2 sm:pt-4 pb-24 lg:pb-8 space-y-5 sm:space-y-6 text-right relative overflow-x-hidden">
       {/* Top Banner Header - Perfect Dual Mode High Contrast */}
-      <ScrollReveal variant="fade-up">
-        <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl dark:bg-slate-900 bg-white border dark:border-slate-800 border-slate-200 shadow-2xl relative overflow-hidden text-right">
-          <div className="absolute top-0 left-0 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
+      <ScrollReveal variant="fade-up" className={showNotif ? 'relative z-40' : 'relative z-10'}>
+        <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl dark:bg-slate-900 bg-white border dark:border-slate-800 border-slate-200 shadow-xl relative text-right">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl sm:rounded-3xl pointer-events-none">
+            <div className="absolute top-0 left-0 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
+          </div>
 
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full dark:bg-emerald-500/10 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/30">
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span>حساب سازمانی تایید شده: {clientName || 'سازمان کاربر جدید'}</span>
-              </div>
-              <h1 className="text-xl sm:text-3xl font-black dark:text-white text-slate-900 leading-tight">
-                پورتال خدمات، مالی و پشتیبانی ANPK
-              </h1>
-              <p className="text-xs sm:text-sm dark:text-slate-400 text-slate-600 font-medium">
-                مدیریت کیف پول، تمدید پشتیبانی SLA ۲۴/۷، پیگیری پروژه‌ها و گزارش پیامک‌ها.
-              </p>
-            </div>
-
-            {/* Quick Wallet Box */}
-            <div className="w-full md:w-auto p-4 sm:p-5 rounded-2xl dark:bg-slate-950/70 bg-slate-100/90 border dark:border-slate-800/80 border-slate-200/90 space-y-3 shrink-0 shadow-inner">
-              <div className="flex items-center justify-between gap-6">
-                <span className="text-xs font-bold dark:text-slate-400 text-slate-600">موجودی کیف پول:</span>
-                <span className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400 dir-rtl">
-                  {walletBalance.toLocaleString('fa-IR')} <span className="text-xs font-bold dark:text-slate-400 text-slate-600">تومان</span>
-                </span>
+          <div className="relative z-10 space-y-2.5">
+            {/* Account bar: identity and global portal actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b dark:border-slate-800 border-slate-200">
+              <div className="inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full dark:bg-emerald-500/10 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold border border-emerald-500/25">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span className="truncate">حساب سازمانی تایید شده: {clientName || 'سازمان کاربر جدید'}</span>
               </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t dark:border-slate-800 border-slate-200">
+              <div className="w-full sm:w-auto flex items-center gap-2">
                 <Link
-                  href="/portal/wallet"
-                  className="flex-1 py-2 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20"
+                  href="/portal/settings"
+                  title="مشاهده حساب کاربری"
+                  className="min-w-0 flex-1 sm:min-w-48 px-2 py-1.5 rounded-xl dark:bg-slate-950/60 bg-slate-50 border dark:border-slate-700 border-slate-200 flex items-center gap-2 hover:border-brand-400 dark:hover:border-brand-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>شارژ کیف پول</span>
+                  <span className="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center font-black shrink-0" aria-hidden="true">
+                    {memberName ? memberInitial : <UserRound className="w-4 h-4" />}
+                  </span>
+                  <span className="min-w-0 text-right leading-tight">
+                    <span className="block text-[11px] font-black dark:text-white text-slate-800 truncate">{visibleMemberName}</span>
+                    <span className="block text-[9px] mt-0.5 dark:text-slate-400 text-slate-500 truncate">
+                      {visibleMemberRole}
+                      {memberPhone && <><span aria-hidden="true"> · </span><span dir="ltr">{memberPhone}</span></>}
+                    </span>
+                  </span>
                 </Link>
 
                 {/* Notification Bell */}
-                <div className="relative">
-                  <button onClick={() => setShowNotif(!showNotif)} className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border dark:border-slate-700 border-slate-300 text-slate-600 dark:text-slate-300 relative hover:bg-slate-50 transition-colors">
+                <div className="relative" ref={notificationRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowNotif(current => !current)}
+                    aria-label="نمایش اعلان‌ها"
+                    aria-haspopup="dialog"
+                    aria-expanded={showNotif}
+                    className="w-10 h-10 rounded-xl dark:bg-slate-950/60 bg-slate-50 border dark:border-slate-700 border-slate-200 text-slate-600 dark:text-slate-300 relative flex items-center justify-center hover:border-brand-400 hover:text-brand-600 dark:hover:border-brand-500 dark:hover:text-brand-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  >
                     <Bell className="w-4 h-4" />
-                    {notifications.filter(n => !n.is_read).length > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold">
-                        {notifications.filter(n => !n.is_read).length}
+                    {unreadNotifications > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-rose-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold">
+                        {unreadNotifications > 9 ? '+۹' : unreadNotifications.toLocaleString('fa-IR')}
                       </span>
                     )}
                   </button>
-                  
+
                   {showNotif && (
-                    <div className="absolute top-12 left-0 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden">
+                    <div
+                      role="dialog"
+                      aria-label="اعلان‌های حساب کاربری"
+                      className="absolute top-12 -left-12 sm:left-0 w-[calc(100vw-2rem)] max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                    >
                       <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                        <span className="text-sm font-bold">اعلان‌ها</span>
-                        <span className="text-xs text-brand-500 cursor-pointer" onClick={() => setShowNotif(false)}>بستن</span>
+                        <div>
+                          <span className="text-sm font-bold dark:text-white text-slate-900">اعلان‌ها</span>
+                          {unreadNotifications > 0 && (
+                            <span className="mr-2 text-[10px] text-rose-500 font-bold">{unreadNotifications.toLocaleString('fa-IR')} خوانده‌نشده</span>
+                          )}
+                        </div>
+                        <button type="button" className="text-xs text-brand-500 hover:text-brand-600 font-bold" onClick={() => setShowNotif(false)}>بستن</button>
                       </div>
-                      <div className="max-h-64 overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <div className="p-4 text-center text-xs text-slate-400">اعلانی وجود ندارد.</div>
+                      <div className="max-h-80 overflow-y-auto overscroll-contain">
+                        {notificationStatus === 'loading' ? (
+                          <div className="p-8 flex items-center justify-center gap-2 text-xs text-slate-500">
+                            <LoaderCircle className="w-4 h-4 animate-spin text-brand-500" />
+                            در حال دریافت اعلان‌ها...
+                          </div>
+                        ) : notificationStatus === 'error' ? (
+                          <div className="p-6 text-center space-y-3">
+                            <p className="text-xs text-rose-600 dark:text-rose-400">دریافت اعلان‌ها با خطا مواجه شد.</p>
+                            <button type="button" onClick={loadNotifications} className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 dark:text-brand-400">
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              تلاش دوباره
+                            </button>
+                          </div>
+                        ) : notifications.length === 0 ? (
+                          <div className="p-8 text-center space-y-2">
+                            <Bell className="w-7 h-7 mx-auto text-slate-300 dark:text-slate-600" />
+                            <p className="text-xs text-slate-500">فعلاً اعلانی برای حساب شما ثبت نشده است.</p>
+                          </div>
                         ) : (
                           notifications.map(n => (
-                            <div key={n.id} onClick={() => handleReadNotif(n.id)} className={`p-4 border-b border-slate-50 dark:border-slate-800/50 cursor-pointer transition-colors ${!n.is_read ? 'bg-sky-50 dark:bg-sky-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                            <button type="button" key={n.id} onClick={() => handleReadNotif(n.id)} className={`w-full p-4 text-right border-b last:border-b-0 border-slate-100 dark:border-slate-800/70 transition-colors ${!n.is_read ? 'bg-sky-50/80 dark:bg-sky-900/10 hover:bg-sky-100/80' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                               <div className="flex justify-between items-start mb-1">
                                 <span className={`text-xs font-bold ${!n.is_read ? 'text-slate-800 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>{n.title}</span>
-                                {n.is_read && <Check className="w-3 h-3 text-emerald-500" />}
+                                {n.is_read ? <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <span className="w-2 h-2 mt-1 rounded-full bg-sky-500 shrink-0" />}
                               </div>
-                              <p className="text-[11px] text-slate-500">{n.message}</p>
-                              <div className="text-[10px] text-slate-400 mt-2 font-mono">{n.created_at}</div>
-                            </div>
+                              <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">{n.message}</p>
+                              <div className="text-[10px] text-slate-400 mt-2" dir="rtl">{formatNotificationDate(n.created_at)}</div>
+                            </button>
                           ))
                         )}
                       </div>
@@ -185,10 +282,46 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   )}
                 </div>
 
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="خروج از پورتال"
+                  aria-label="خروج از پورتال"
+                  className="w-10 h-10 rounded-xl dark:bg-slate-950/60 bg-slate-50 border dark:border-slate-700 border-slate-200 text-slate-500 dark:text-slate-300 flex items-center justify-center hover:border-rose-300 hover:text-rose-500 dark:hover:border-rose-500/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
 
-                <div className="px-2.5 py-1.5 rounded-xl dark:bg-slate-900 bg-white border dark:border-slate-700 border-slate-300 text-[11px] font-mono font-bold dark:text-slate-300 text-slate-700 shrink-0">
-                  موبایل: {userPhone}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="space-y-1 max-w-2xl">
+                <h1 className="text-lg sm:text-xl font-black dark:text-white text-slate-900 leading-tight">
+                  پورتال خدمات، مالی و پشتیبانی ANPK
+                </h1>
+                <p className="text-xs sm:text-[13px] dark:text-slate-400 text-slate-600 font-medium leading-5">
+                  مدیریت کیف پول، تمدید پشتیبانی SLA ۲۴/۷، پیگیری پروژه‌ها و گزارش پیامک‌ها.
+                </p>
+              </div>
+
+              {/* Wallet summary: only finance information and its primary action */}
+              <div className="w-full md:w-auto p-2 rounded-xl dark:bg-slate-950/60 bg-slate-50 border dark:border-slate-800 border-slate-200 flex items-center gap-2.5 shrink-0">
+                <span className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Wallet className="w-4 h-4" />
+                </span>
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold dark:text-slate-400 text-slate-500">موجودی کیف پول</span>
+                  <span className="block text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                    {walletBalance.toLocaleString('fa-IR')} <span className="text-[9px] font-bold dark:text-slate-400 text-slate-500">تومان</span>
+                  </span>
                 </div>
+                <Link
+                  href="/portal/finance/wallet"
+                  className="mr-auto py-1.5 px-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold transition-colors text-center flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 whitespace-nowrap"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>شارژ کیف پول</span>
+                </Link>
               </div>
             </div>
           </div>

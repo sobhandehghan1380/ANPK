@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { MessageCircle, Send, CheckCircle2, AlertCircle, Clock, User } from 'lucide-react';
@@ -28,7 +28,7 @@ export function ArticleComments({ slug, allowComments }: ArticleCommentsProps) {
 
   const fetchComments = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/blog/articles/${slug}/comments/`);
+      const res = await fetch(`${API_BASE}/api/v1/blog/articles/${slug}/comments/`);
       if (res.ok) {
         const data = await res.json();
         setComments(data.comments || []);
@@ -49,7 +49,7 @@ export function ArticleComments({ slug, allowComments }: ArticleCommentsProps) {
     
     try {
       const payload = { name, email, content, parent_id: replyTo?.id };
-      const res = await fetch(`${API_BASE}/api/blog/articles/${slug}/comments/`, {
+      const res = await fetch(`${API_BASE}/api/v1/blog/articles/${slug}/comments/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

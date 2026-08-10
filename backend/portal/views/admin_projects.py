@@ -1,16 +1,17 @@
 import random
 import logging
 from django.db import models
+from django.utils.text import slugify
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from portal.models import (
-    ClientOrganization, Wallet, WalletTransaction, SLASupportContract,
-    SupportTicket, APIKey, SMSLog, SMSOTPCode
-)
+from accounts.models import Organization as ClientOrganization, SMSOTPCode
+from billing.models import Wallet, WalletTransaction
+from integrations.models import APIKey, SMSLog
+from support.models import SLASupportContract, SupportTicket
 from services.models import AILog, SystemNodeStatus
 
 User = get_user_model()
@@ -30,7 +31,7 @@ def admin_projects(request):
     Admin Projects Management API to list and create client projects with phases and API keys
     """
     from projects.models import ClientContractProject, ProjectPhase
-    from portal.models import APIKey
+    from integrations.models import APIKey
     import secrets
 
     if request.method == 'POST':
@@ -97,9 +98,18 @@ def admin_projects(request):
 
         try:
             client = ClientOrganization.objects.get(id=client_id)
+
+            base_slug = slugify(title, allow_unicode=True) or 'project'
+            slug = base_slug
+            suffix = 1
+            while ClientContractProject.objects.filter(slug=slug).exists():
+                suffix += 1
+                slug = f"{base_slug}-{suffix}"
+
             project = ClientContractProject.objects.create(
                 client=client,
                 title=title,
+                slug=slug,
                 contract_number=contract_number,
                 active_phase_title='فاز ۲: پیاده‌سازی زیرساخت و دیتابیس',
                 sprint_progress=35,
@@ -148,6 +158,7 @@ def admin_projects(request):
             'active_phase_title': p.active_phase_title,
             'sprint_progress': p.sprint_progress,
             'is_active': p.is_active,
+            'usage_api': f'/api/v1/projects/{p.id}/usage/',
             'phases': [{
                 'id': ph.id,
                 'phase_number': ph.phase_number,

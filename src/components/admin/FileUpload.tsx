@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useRef } from 'react';
-import { UploadCloud, X, CheckCircle2, AlertCircle, Image, Film } from 'lucide-react';
+import { UploadCloud, X, CheckCircle2, AlertCircle, Image as ImageIcon, Film } from 'lucide-react';
 
 interface FileUploadProps {
   value: string;
@@ -39,7 +39,7 @@ export default function FileUpload({
 
   const getIcon = () => {
     switch (type) {
-      case 'image': return <Image className="w-4 h-4" />;
+      case 'image': return <ImageIcon className="w-4 h-4" />;
       case 'video': return <Film className="w-4 h-4" />;
       default: return <UploadCloud className="w-4 h-4" />;
     }
@@ -63,7 +63,7 @@ export default function FileUpload({
       formData.append('file', file);
       formData.append('type', type);
 
-      const res = await fetch(`${API_BASE}/api/admin/upload/`, {
+      const res = await fetch(`${API_BASE}/api/v1/admin/upload/`, {
         method: 'POST',
         body: formData,
       });

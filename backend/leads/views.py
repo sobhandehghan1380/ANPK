@@ -1,22 +1,17 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
 from .models import ProjectLead, LeadActivityLog
 
 @api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
 def project_leads_list(request):
     if request.method == 'GET':
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'دسترسی غیرمجاز.'}, status=status.HTTP_403_FORBIDDEN)
+
         leads = ProjectLead.objects.prefetch_related('activities').all().order_by('-created_at')
-        if not leads.exists():
-            ProjectLead.objects.create(
-                company_name='بیمارستان شهید صدوقی یزد',
-                contact_person='دکتر علوی',
-                phone='09131510000',
-                service_type='سامانه CMMS نگهداشت تأسیسات',
-                budget_range='۱۵۰ میلیون تومان',
-                status='new'
-            )
-            leads = ProjectLead.objects.prefetch_related('activities').all().order_by('-created_at')
 
         data = [{
             'id': l.id,
@@ -45,6 +40,9 @@ def project_leads_list(request):
 
     elif request.method == 'POST':
         action = request.data.get('action')
+
+        if action and (not request.user.is_authenticated or not request.user.is_staff):
+            return Response({'error': 'دسترسی غیرمجاز.'}, status=status.HTTP_403_FORBIDDEN)
         
         if action == 'update_status':
             lead_id = request.data.get('lead_id')
@@ -98,15 +96,11 @@ def project_leads_list(request):
 
         return Response({'message': 'درخواست پروژه شما با موفقیت در سیستم ثبت گردید.', 'id': f"LD-{lead.id}"}, status=status.HTTP_201_CREATED)
 
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .models import ProjectLead, LeadActivityLog
-from portal.models import ClientOrganization, Wallet
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
+from accounts.models import Organization
+from billing.models import Wallet
 
 @api_view(['POST'])
+@permission_classes([IsAdminUser])
 def convert_lead(request):
     lead_id = request.data.get('lead_id')
     try:
@@ -115,31 +109,26 @@ def convert_lead(request):
             lead.status = 'contract'
             lead.save()
             
-        # Create a user for the client
-        username = lead.phone
-        if not User.objects.filter(username=username).exists():
-            user = User.objects.create_user(username=username, password='Client123!@#', email=lead.email or '')
-        else:
-            user = User.objects.get(username=username)
-            
         # Create client organization
-        client, created = ClientOrganization.objects.get_or_create(
+        client, created = Organization.objects.get_or_create(
             phone=lead.phone,
             defaults={
                 'name': lead.company_name,
                 'contact_person': lead.contact_person,
-                'owner_user': user
             }
         )
         
         # Create wallet
         Wallet.objects.get_or_create(client=client, defaults={'balance': 0})
+
+        from accounts.services import ensure_owner_membership
+        owner_member = ensure_owner_membership(client, lead.phone, lead.contact_person)
         
         # Log conversion
         LeadActivityLog.objects.create(
             lead=lead,
             activity_type='note',
-            description=f"تبدیل خودکار لید به مشتری قطعی در سیستم انجام شد. یوزرنیم: {username}"
+            description=f"تبدیل لید به مشتری قطعی انجام شد. عضو مالک: {owner_member.full_name if owner_member else 'از قبل موجود'}"
         )
         
         return Response({'message': 'مشتری و کیف پول با موفقیت ساخته شد!', 'client_id': client.id})

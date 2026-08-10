@@ -17,7 +17,7 @@ export default function TicketsPage() {
   const loadData = async () => {
     try {
       const res = await getAdminTickets();
-      setTickets(res?.tickets || []);
+      setTickets(Array.isArray(res) ? res : (res?.tickets || []));
     } catch (err) {
       console.error(err);
     } finally {
@@ -95,6 +95,8 @@ export default function TicketsPage() {
                   </div>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
                     <User className="w-3.5 h-3.5" /> {t.client_name}
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <span className="font-bold text-brand-500">{t.project_name}</span>
                     <span className="text-slate-300 dark:text-slate-700">|</span>
                     <span className="font-mono">{t.created_at}</span>
                   </div>

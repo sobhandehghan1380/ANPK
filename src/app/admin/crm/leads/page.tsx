@@ -259,7 +259,7 @@ export default function AdminLeadsPage() {
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md border dark:border-slate-800 shadow-2xl animate-fade-in text-right space-y-6">
             <div className="space-y-1">
               <h3 className="text-lg font-black dark:text-white">تبدیل به مشتری قطعی</h3>
-              <p className="text-xs text-slate-500">لید "{convertingLead.company}" به چرخه مالی سیستم متصل خواهد شد.</p>
+              <p className="text-xs text-slate-500">لید «{convertingLead.company}» به چرخه مالی سیستم متصل خواهد شد.</p>
             </div>
             
             <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl space-y-3">

@@ -1,15 +1,17 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from .models import ContactMessage
 
 @api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
 def contact_messages(request):
     if request.method == 'GET':
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({'error': 'دسترسی غیرمجاز.'}, status=status.HTTP_403_FORBIDDEN)
+
         msgs = ContactMessage.objects.all().order_by('-created_at')
-        if not msgs.exists():
-            ContactMessage.objects.create(name='مهندس ابراهیمی', phone='09139998877', subject='درخواست جلسه مشاوره اختصاصی', message='با سلام، جهت دریافت تایم جلسه در خصوص CMMS تماس بگیرید.')
-            msgs = ContactMessage.objects.all().order_by('-created_at')
 
         data = [{
             'id': m.id,

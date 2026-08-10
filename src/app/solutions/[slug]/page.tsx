@@ -7,8 +7,9 @@ import { ScrollReveal } from '@/components/ScrollReveal';
 import { TiltCard } from '@/components/TiltCard';
 import { Metadata } from 'next';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const solution = await getSolutionBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const solution = await getSolutionBySlug(slug);
   if (!solution) return { title: 'راهکار تخصصی یافت نشد | ANPK' };
   return {
     title: `${solution.title || 'راهکار تخصصی'} | ارشیا نگین پردازش`,
@@ -16,8 +17,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function SolutionDetailPage({ params }: { params: { slug: string } }) {
-  const solution = await getSolutionBySlug(params.slug);
+export default async function SolutionDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const solution = await getSolutionBySlug(slug);
 
   if (!solution) {
     notFound();

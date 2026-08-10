@@ -7,10 +7,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from portal.models import (
-    ClientOrganization, Wallet, WalletTransaction, SLASupportContract,
-    SupportTicket, APIKey, SMSLog, SMSOTPCode
-)
+from accounts.models import Organization as ClientOrganization, SMSOTPCode
+from billing.models import Wallet, WalletTransaction
+from integrations.models import APIKey, SMSLog
+from support.models import SLASupportContract, SupportTicket
 from services.models import AILog, SystemNodeStatus
 
 User = get_user_model()
@@ -65,6 +65,30 @@ def admin_overview(request):
         'is_active': n.is_active
     } for n in nodes]
 
+    # Contract Projects (for the projects board sidebar/list)
+    contract_projects = ClientContractProject.objects.select_related('client').prefetch_related('phases').all().order_by('-created_at')
+    contract_projects_data = [{
+        'id': p.id,
+        'title': p.title,
+        'client_id': p.client.id if p.client else None,
+        'client_name': p.client.name if p.client else 'سازمان ثبت‌نشده',
+        'contract_number': p.contract_number,
+        'active_phase_title': p.active_phase_title,
+        'sprint_progress': p.sprint_progress,
+        'is_active': p.is_active,
+        'phases': [{
+            'id': ph.id,
+            'phase_number': ph.phase_number,
+            'title': ph.title,
+            'description': ph.description,
+            'progress_percentage': ph.progress_percentage,
+            'status': ph.status,
+            'start_date': ph.start_date.strftime('%Y-%m-%d') if ph.start_date else None,
+            'target_delivery_date': ph.target_delivery_date.strftime('%Y-%m-%d') if ph.target_delivery_date else None,
+            'deliverable_file': ph.deliverable_file.url if ph.deliverable_file else None,
+        } for ph in p.phases.all()]
+    } for p in contract_projects]
+
     return Response({
         'total_clients': total_clients,
         'total_projects': total_projects,
@@ -75,7 +99,8 @@ def admin_overview(request):
         'total_ai_logs': total_ai_logs,
         'total_sms_logs': total_sms_logs,
         'recent_leads': leads_data,
-        'nodes': nodes_data
+        'nodes': nodes_data,
+        'contract_projects': contract_projects_data
     })
 
 @api_view(['GET'])
@@ -111,7 +136,7 @@ def admin_analytics(request):
     projects = ClientContractProject.objects.all()
     projects_breakdown = [{
         'name': p.title,
-        'progress': p.progress_percentage
+        'progress': p.sprint_progress
     } for p in projects]
 
     return Response({

@@ -17,6 +17,9 @@ export default function PricingPlansPage() {
   const [trialDays, setTrialDays] = useState(0);
   const [minMonths, setMinMonths] = useState(1);
   const [featuresList, setFeaturesList] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [serviceType, setServiceType] = useState('SUPPORT');
+  const [effectiveFrom, setEffectiveFrom] = useState(() => new Date().toISOString().slice(0, 10));
   
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -41,8 +44,11 @@ export default function PricingPlansPage() {
     setSubmitting(true); setSuccessMsg(''); setErrorMsg('');
     try {
       const res = await manageAdminPricingPlan({ 
+        id: editingId,
         name, 
         description,
+        service_type: serviceType,
+        effective_from: effectiveFrom,
         monthly_price: monthlyPrice, 
         yearly_price: yearlyPrice,
         server_cost: serverCost,
@@ -55,6 +61,7 @@ export default function PricingPlansPage() {
         setSuccessMsg(res.message);
         setName(''); setDescription(''); setMonthlyPrice(0); setYearlyPrice(0);
         setServerCost(0); setSupportCost(0); setTrialDays(0); setMinMonths(1); setFeaturesList('');
+        setEditingId(null); setServiceType('SUPPORT'); setEffectiveFrom(new Date().toISOString().slice(0, 10));
         loadData();
       }
     } catch (err) {
@@ -72,6 +79,22 @@ export default function PricingPlansPage() {
     await manageAdminPricingPlan({ action: 'delete', id });
     loadData();
   }
+
+  const handleEdit = (plan: any) => {
+    setEditingId(plan.id);
+    setName(plan.name || '');
+    setDescription(plan.description || '');
+    setServiceType(plan.service_type || 'SUPPORT');
+    setMonthlyPrice(plan.monthly_price || 0);
+    setYearlyPrice(plan.yearly_price || 0);
+    setServerCost(plan.server_cost || 0);
+    setSupportCost(plan.support_cost || 0);
+    setTrialDays(plan.trial_days || 0);
+    setMinMonths(plan.min_months || 1);
+    setFeaturesList(plan.features_list || '');
+    setEffectiveFrom(new Date().toISOString().slice(0, 10));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   if (loading) return <div className="text-center mt-20"><div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
 
@@ -91,7 +114,7 @@ export default function PricingPlansPage() {
       <div className="p-6 sm:p-8 rounded-3xl glass-card border dark:border-slate-800 border-slate-200 shadow-xl">
         <div className="flex items-center gap-2 border-b dark:border-slate-800 border-slate-200 pb-4 mb-6">
           <PlusCircle className="w-5 h-5 text-brand-500" />
-          <h2 className="text-base font-black dark:text-white text-slate-900">تعریف پلن جدید</h2>
+          <h2 className="text-base font-black dark:text-white text-slate-900">{editingId ? 'ثبت قیمت جدید برای پلن' : 'تعریف پلن جدید'}</h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -102,6 +125,23 @@ export default function PricingPlansPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-bold dark:text-slate-300 text-slate-700">توضیحات:</label>
               <input type="text" value={description} onChange={e=>setDescription(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold focus:border-brand-500" placeholder="توضیح کوتاه درباره پلن" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold dark:text-slate-300 text-slate-700">نوع سرویس:</label>
+              <select value={serviceType} onChange={e => setServiceType(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold focus:border-brand-500">
+                <option value="HOSTING">میزبانی و سرور</option>
+                <option value="SUPPORT">پشتیبانی</option>
+                <option value="MAINTENANCE">نگهداری دوره‌ای</option>
+                <option value="OTHER">سایر خدمات</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold dark:text-slate-300 text-slate-700">قیمت جدید معتبر از:</label>
+              <input type="date" required value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold focus:border-brand-500" />
+              <p className="text-[10px] text-slate-400">دوره‌های قبلی با قیمت ثبت‌شده خودشان باقی می‌مانند.</p>
             </div>
           </div>
 
@@ -142,7 +182,10 @@ export default function PricingPlansPage() {
             <label className="text-xs font-bold dark:text-slate-300 text-slate-700">ویژگی‌ها (هر خط یک ویژگی):</label>
             <textarea rows={4} value={featuresList} onChange={e=>setFeaturesList(e.target.value)} className="w-full px-4 py-3 rounded-xl dark:bg-slate-900 bg-slate-50 border dark:border-slate-700 border-slate-300 text-xs font-bold focus:border-brand-500" placeholder="- پشتیبانی ۲۴ ساعته&#10;- آپدیت رایگان&#10;- بکاپ روزانه"></textarea>
           </div>
-          <button type="submit" disabled={submitting} className="px-8 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg">ثبت پلن قیمت‌گذاری</button>
+          <div className="flex gap-2">
+            <button type="submit" disabled={submitting} className="px-8 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg">{editingId ? 'ثبت نسخه قیمت جدید' : 'ثبت پلن قیمت‌گذاری'}</button>
+            {editingId && <button type="button" onClick={() => { setEditingId(null); setName(''); setDescription(''); }} className="px-5 py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold">انصراف</button>}
+          </div>
         </form>
       </div>
 
@@ -155,6 +198,9 @@ export default function PricingPlansPage() {
                 {p.description && <p className="text-xs text-slate-400 mt-1">{p.description}</p>}
               </div>
               <div className="flex gap-2">
+                <button onClick={() => handleEdit(p)} className="p-2 rounded-xl bg-sky-500/10 text-sky-500 hover:bg-sky-500 hover:text-white border border-sky-500/20" aria-label="ویرایش و ثبت قیمت جدید">
+                  <Edit className="w-4 h-4" />
+                </button>
                 <button onClick={() => handleToggle(p.id)} className={`p-2 rounded-xl border transition-colors ${p.is_active ? 'bg-emerald-500/10 text-emerald-500 hover:bg-amber-500 hover:text-white' : 'bg-slate-500/10 text-slate-400 hover:bg-emerald-500 hover:text-white'}`}>
                   <Power className="w-4 h-4" />
                 </button>
@@ -181,9 +227,22 @@ export default function PricingPlansPage() {
             </div>
 
             <div className="flex gap-2 flex-wrap">
+              <span className="text-[9px] bg-brand-500/10 text-brand-500 px-2 py-1 rounded-full font-bold">{p.service_type === 'HOSTING' ? 'میزبانی' : p.service_type === 'SUPPORT' ? 'پشتیبانی' : p.service_type === 'MAINTENANCE' ? 'نگهداری' : 'سایر'}</span>
               {p.trial_days > 0 && <span className="text-[9px] bg-sky-500/10 text-sky-500 px-2 py-1 rounded-full font-bold">{p.trial_days} روز تست</span>}
               {p.min_months > 1 && <span className="text-[9px] bg-amber-500/10 text-amber-500 px-2 py-1 rounded-full font-bold">حداقل {p.min_months} ماه</span>}
             </div>
+
+            {p.price_versions?.length > 0 && (
+              <div className="border-t dark:border-slate-800 pt-3 space-y-1">
+                <div className="text-[10px] font-bold text-slate-500">تاریخچه قیمت ماهانه</div>
+                {p.price_versions.slice(0, 3).map((version: any) => (
+                  <div key={version.id} className="flex justify-between text-[10px] text-slate-400">
+                    <span>از {version.effective_from}</span>
+                    <span className="font-mono">{Number(version.monthly_price).toLocaleString()} تومان</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="text-[10px] dark:text-slate-400 whitespace-pre-line border-t dark:border-slate-800 pt-4 font-medium">
               {p.features_list}

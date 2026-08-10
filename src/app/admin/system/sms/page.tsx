@@ -1,8 +1,10 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { getAdminSMSLogs, adminFetch } from '@/lib/api';
 import { Send, PlusCircle, CheckCircle2, MessageSquare, PhoneCall, Filter } from 'lucide-react';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 export default function AdminSMSPage() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -36,12 +38,11 @@ export default function AdminSMSPage() {
     setSubmitting(true);
     setSuccessMsg('');
     try {
-      const res = await adminFetch('http://127.0.0.1:8000/api/admin/sms-logs/', {
+      const data = await adminFetch(`${API_BASE}/api/v1/admin/sms-logs/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipient, text })
       });
-      const data = await res.json();
       if (data?.message) {
         setSuccessMsg(data.message);
         setRecipient('');

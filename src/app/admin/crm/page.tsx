@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminFetch } from '@/lib/api';
@@ -19,8 +19,8 @@ export default function CRMDashboardPage() {
     setLoading(true);
     try {
       const [cList, lList] = await Promise.all([
-        adminFetch(`${API_BASE}/api/admin/clients/`),
-        adminFetch(`${API_BASE}/api/leads/submit/`),
+        adminFetch(`${API_BASE}/api/v1/admin/clients/`),
+        adminFetch(`${API_BASE}/api/v1/leads/submit/`),
       ]);
       setClients(cList || []);
       setLeads(Array.isArray(lList) ? lList : []);

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getSMSLogs, getClientProjects } from '@/lib/api';
+import { getSMSLogs, getClientProjects, getProjectUsage } from '@/lib/api';
 import { MessageSquare, Send, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
 
 export default function SMSLogsPage() {
@@ -26,8 +26,13 @@ export default function SMSLogsPage() {
     async function fetchLogsData() {
       setLoading(true);
       try {
-        const res = await getSMSLogs(selectedProjectId);
-        setLogs(res || []);
+        if (selectedProjectId) {
+          const usage = await getProjectUsage(selectedProjectId);
+          setLogs(usage?.sms?.logs || []);
+        } else {
+          const res = await getSMSLogs();
+          setLogs(res || []);
+        }
       } catch (err) {
         console.error('Error loading SMS logs:', err);
       } finally {

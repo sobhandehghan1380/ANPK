@@ -7,11 +7,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from portal.models import (
-    UserProfile,
-    ClientOrganization, Wallet, WalletTransaction, SLASupportContract,
-    SupportTicket, APIKey, SMSLog, SMSOTPCode
-)
+from accounts.models import Organization as ClientOrganization, SMSOTPCode, UserProfile
+from billing.models import Wallet, WalletTransaction
+from integrations.models import APIKey, SMSLog
+from support.models import SLASupportContract, SupportTicket
 from services.models import AILog, SystemNodeStatus
 
 User = get_user_model()
@@ -54,11 +53,20 @@ def admin_sms_logs(request):
         recipient = request.data.get('recipient')
         text = request.data.get('text')
         operator = request.data.get('operator', 'کاوه‌نگار / مگفا (بومی)')
+        project_id = request.data.get('project_id')
 
         if not recipient or not text:
             return Response({'error': 'شماره دریافت‌کننده و متن پیامک الزامی است.'}, status=400)
 
+        project = None
+        if project_id:
+            from projects.models import ClientContractProject
+            project = ClientContractProject.objects.filter(id=project_id).first()
+            if not project:
+                return Response({'error': 'پروژه انتخاب‌شده یافت نشد.'}, status=400)
+
         sms_log = SMSLog.objects.create(
+            project=project,
             recipient=recipient,
             text=text,
             operator=operator,

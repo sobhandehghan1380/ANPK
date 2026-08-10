@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getAIUsageLogs, getClientProjects } from '@/lib/api';
+import { getAIUsageLogs, getClientProjects, getProjectUsage } from '@/lib/api';
 import { Bot, Cpu, DollarSign, Clock, PlusCircle, Filter, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export default function PortalAIUsagePage() {
@@ -28,8 +28,13 @@ export default function PortalAIUsagePage() {
     async function loadAILogs() {
       setLoading(true);
       try {
-        const res = await getAIUsageLogs(selectedProjectId);
-        setAiLogs(res);
+        if (selectedProjectId) {
+          const usage = await getProjectUsage(selectedProjectId);
+          setAiLogs(usage?.ai?.logs || []);
+        } else {
+          const res = await getAIUsageLogs();
+          setAiLogs(res || []);
+        }
       } catch (err) {
         console.error('Error loading AI logs:', err);
       } finally {
@@ -56,7 +61,7 @@ export default function PortalAIUsagePage() {
         </div>
 
         <Link
-          href="/portal/wallet"
+          href="/portal/finance/wallet"
           className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-colors shrink-0"
         >
           <PlusCircle className="w-4 h-4" />

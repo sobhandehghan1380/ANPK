@@ -7,11 +7,17 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from portal.models import (
-    ClientOrganization, Wallet, WalletTransaction, SLASupportContract,
-    SupportTicket, TicketReply, APIKey, SMSLog, SMSOTPCode
+from accounts.models import (
+    Organization as ClientOrganization,
+    OrganizationMembership as ClientMember,
+    SMSOTPCode,
 )
+from billing.models import Wallet, WalletTransaction
+from integrations.models import APIKey, SMSLog
+from subscriptions.models import ClientSubscription
+from support.models import SLASupportContract, SupportTicket, TicketReply
 from services.models import AILog, SystemNodeStatus
+from accounts.services import ensure_owner_membership
 
 User = get_user_model()
 logger = logging.getLogger('portal')
@@ -46,7 +52,6 @@ def admin_clients(request):
             defaults={
                 'name': name, 
                 'contact_person': contact_person, 
-                'owner_user': owner_user,
                 'email': request.data.get('email', ''),
                 'address': request.data.get('address', ''),
                 'national_code': request.data.get('national_code', ''),
@@ -60,11 +65,10 @@ def admin_clients(request):
         if not created:
             client.name = name
             client.contact_person = contact_person
-            if owner_user:
-                client.owner_user = owner_user
             client.save()
 
         Wallet.objects.get_or_create(client=client, defaults={'balance': initial_balance})
+        ensure_owner_membership(client, phone, contact_person, owner_user)
 
         return Response({'message': f'سازمان "{name}" به همراه اکانت کاربر متصل ثبت گردید.', 'id': client.id})
 
@@ -81,9 +85,12 @@ def admin_clients(request):
             
             if 'user_id' in request.data:
                 user_id = request.data['user_id']
-                client.owner_user = User.objects.filter(id=user_id).first() if user_id else None
-            
+                owner_user = User.objects.filter(id=user_id).first() if user_id else None
+            else:
+                owner_user = None
+             
             client.save()
+            ensure_owner_membership(client, client.phone, client.contact_person, owner_user)
             return Response({'message': 'سازمان با موفقیت بروزرسانی شد.'})
         except ClientOrganization.DoesNotExist:
             return Response({'error': 'سازمان یافت نشد.'}, status=404)
@@ -96,7 +103,14 @@ def admin_clients(request):
         except ClientOrganization.DoesNotExist:
             return Response({'error': 'سازمان یافت نشد.'}, status=404)
 
-    clients = ClientOrganization.objects.select_related('owner_user', 'wallet').prefetch_related('contract_projects').all().order_by('-created_at')
+    clients = ClientOrganization.objects.select_related('wallet').prefetch_related(
+        models.Prefetch(
+            'members',
+            queryset=ClientMember.objects.filter(role='OWNER', is_active=True).select_related('user'),
+            to_attr='active_owner_memberships',
+        ),
+        'contract_projects',
+    ).all().order_by('-created_at')
     data = [{
         'id': c.id,
         'name': c.name,
@@ -111,9 +125,9 @@ def admin_clients(request):
         'tags': c.tags,
         'tags_list': c.get_tags_list(),
         'portal_access': c.portal_access,
-        'owner_username': c.owner_user.username if c.owner_user else 'اکانت کاربر متصل‌نشده',
-        'owner_user_id': c.owner_user.id if c.owner_user else None,
-        'owner_email': c.owner_user.email if c.owner_user else None,
+        'owner_username': c.active_owner_memberships[0].user.username if c.active_owner_memberships else 'اکانت کاربر متصل‌نشده',
+        'owner_user_id': c.active_owner_memberships[0].user_id if c.active_owner_memberships else None,
+        'owner_email': c.active_owner_memberships[0].user.email if c.active_owner_memberships else None,
         'wallet_balance': c.wallet.balance if hasattr(c, 'wallet') else 0,
         'wallet_id': c.wallet.id if hasattr(c, 'wallet') else None,
         'projects_count': c.contract_projects.count(),
@@ -143,7 +157,7 @@ def admin_wallets(request):
             
             import uuid
             from datetime import date
-            from portal.models import Invoice, InvoiceItem
+            from billing.models import Invoice, InvoiceItem
             
             invoice = Invoice.objects.create(
                 client=client,
@@ -207,12 +221,21 @@ def admin_tickets(request):
     Admin Support Tickets Management API to list and update ticket status
     """
     if request.method == 'POST':
-        ticket_id = request.data.get('ticket_id')
-        new_status = request.data.get('status', 'پاسخ داده شده')
-        reply_message = request.data.get('reply', '')
+        action = request.data.get('action', 'update_status')
+        ticket_id = request.data.get('ticket_id') or request.data.get('id')
         
         try:
             ticket = SupportTicket.objects.get(id=ticket_id)
+            if action == 'delete':
+                ticket.delete()
+                return Response({'message': 'تیکت حذف شد.'})
+
+            new_status = request.data.get('status')
+            reply_message = request.data.get('reply') or request.data.get('message', '')
+            if action == 'reply_ticket' and reply_message:
+                new_status = 'answered'
+            if not new_status:
+                new_status = ticket.status
             ticket.status = new_status
             ticket.save()
             
@@ -224,15 +247,17 @@ def admin_tickets(request):
                     message=reply_message
                 )
             
-            return Response({'message': f'وضعیت تیکت #{ticket.id} به "{new_status}" تغییر یافت.'})
+            return Response({'message': f'تیکت #{ticket.id} بروزرسانی شد.', 'status': new_status})
         except SupportTicket.DoesNotExist:
             return Response({'error': 'تیکت یافت نشد.'}, status=400)
 
-    tickets = SupportTicket.objects.select_related('client').prefetch_related('replies').all().order_by('-created_at')
+    tickets = SupportTicket.objects.select_related('client', 'project').prefetch_related('replies').all().order_by('-created_at')
     data = [{
         'id': t.id,
         'client_name': t.client_name or (t.client.name if t.client else 'کاربر ناشناس'),
         'client_id': t.client.id if t.client else None,
+        'project_id': t.project_id,
+        'project_name': t.project.title if t.project else 'تیکت قدیمی بدون پروژه',
         'subject': t.subject,
         'message': t.message,
         'status': t.status,
@@ -254,32 +279,55 @@ def admin_sla_contracts(request):
     Admin SLA Support Contracts API (کامل مثل جنگو ادمین)
     """
     if request.method == 'POST':
-        client_id = request.data.get('client_id')
+        subscription_id = request.data.get('subscription_id')
+        if not subscription_id:
+            return Response({'error': 'انتخاب اشتراک پروژه برای SLA الزامی است.'}, status=400)
         plan_name = request.data.get('plan_name', 'SLA Gold')
         duration_months = int(request.data.get('duration_months', 12))
+        support_schedule = request.data.get('support_schedule', '24/7')
+        response_time_minutes = int(request.data.get('response_time_minutes', 30))
+        resolution_time_hours = int(request.data.get('resolution_time_hours', 4))
+        availability_percentage = request.data.get('availability_percentage', '99.90')
         from datetime import date
         try:
-            client = ClientOrganization.objects.get(id=client_id)
+            subscription = ClientSubscription.objects.select_related('client', 'project').get(id=subscription_id)
+            if not subscription.project:
+                return Response({'error': 'اشتراک قدیمی فاقد پروژه است و نمی‌تواند SLA جدید دریافت کند.'}, status=400)
+            if hasattr(subscription, 'sla_contract'):
+                return Response({'error': 'برای این اشتراک قبلاً قرارداد SLA ثبت شده است.'}, status=400)
             contract = SLASupportContract.objects.create(
-                client=client,
+                client=subscription.client,
+                project=subscription.project,
+                subscription=subscription,
                 plan_name=plan_name,
                 duration_months=duration_months,
                 start_date=date.today(),
+                support_schedule=support_schedule,
+                response_time_minutes=response_time_minutes,
+                resolution_time_hours=resolution_time_hours,
+                availability_percentage=availability_percentage,
                 is_active=True
             )
-            return Response({'message': f'قرارداد SLA "{plan_name}" برای سازمان "{client.name}" ثبت شد.', 'id': contract.id})
-        except ClientOrganization.DoesNotExist:
-            return Response({'error': 'سازمان یافت نشد.'}, status=400)
+            return Response({'message': f'قرارداد SLA "{plan_name}" برای پروژه "{subscription.project.title}" ثبت شد.', 'id': contract.id})
+        except ClientSubscription.DoesNotExist:
+            return Response({'error': 'اشتراک یافت نشد.'}, status=404)
 
-    contracts = SLASupportContract.objects.select_related('client').all().order_by('-start_date')
+    contracts = SLASupportContract.objects.select_related('client', 'project', 'subscription').all().order_by('-start_date')
     data = [{
         'id': c.id,
         'client_name': c.client.name if c.client else 'سازمان ثبت‌نشده',
         'client_id': c.client.id if c.client else None,
+        'project_id': c.project_id,
+        'project_name': c.project.title if c.project else 'SLA قدیمی بدون پروژه',
+        'subscription_id': c.subscription_id,
         'plan_name': c.plan_name,
         'start_date': c.start_date.strftime('%Y/%m/%d') if c.start_date else '',
         'duration_months': c.duration_months,
         'remaining_days': c.remaining_days,
+        'support_schedule': c.support_schedule,
+        'response_time_minutes': c.response_time_minutes,
+        'resolution_time_hours': c.resolution_time_hours,
+        'availability_percentage': str(c.availability_percentage),
         'is_active': c.is_active,
     } for c in contracts]
     return Response(data)
@@ -290,21 +338,18 @@ def admin_sla_contracts(request):
 def admin_convert_lead(request):
     lead_id = request.data.get('lead_id')
     from leads.models import ProjectLead
-    from django.contrib.auth.models import User
-    from portal.models import Wallet
     try:
         lead = ProjectLead.objects.get(id=lead_id)
-        # Create user
-        user, _ = User.objects.get_or_create(username=lead.phone, defaults={'first_name': lead.contact_person})
         # Create client
         client, created = ClientOrganization.objects.get_or_create(
             phone=lead.phone,
-            defaults={'name': lead.company_name, 'contact_person': lead.contact_person, 'owner_user': user}
+            defaults={'name': lead.company_name, 'contact_person': lead.contact_person}
         )
         if created:
             Wallet.objects.create(client=client, balance=0)
-            
-        lead.status = 'converted'
+        ensure_owner_membership(client, lead.phone, lead.contact_person)
+
+        lead.status = 'contract'
         lead.save()
         return Response({'message': 'سرنخ (Lead) به مشتری دائم تبدیل شد و کیف‌پول آن ایجاد گردید.'})
     except Exception as e:

@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { adminFetch } from '@/lib/api';
 import { Settings, ShieldCheck, CheckCircle2, Type, Building2, PanelTop, Trash2, PlusCircle } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/admin';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000') + '/api/v1/admin';
 
 export default function AdminSiteSettingsPage() {
   const [activeTab, setActiveTab] = useState<'company' | 'hero' | 'typewriter'>('company');
@@ -22,7 +22,7 @@ export default function AdminSiteSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const res = await adminFetch(`${API_BASE}/admin/site-settings/`);
+      const res = await adminFetch(`${API_BASE}/site-settings/`);
       if (res) {
         setCompany(res.company);
         setHero(res.hero);
@@ -48,7 +48,7 @@ export default function AdminSiteSettingsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await adminFetch(`${API_BASE}/admin/site-settings/`, {
+      const res = await adminFetch(`${API_BASE}/site-settings/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'update_company', ...company })
@@ -65,7 +65,7 @@ export default function AdminSiteSettingsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await adminFetch(`${API_BASE}/admin/site-settings/`, {
+      const res = await adminFetch(`${API_BASE}/site-settings/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'update_hero', ...hero })
@@ -83,7 +83,7 @@ export default function AdminSiteSettingsPage() {
     if (!newTwText) return;
     setSubmitting(true);
     try {
-      const res = await adminFetch(`${API_BASE}/admin/site-settings/`, {
+      const res = await adminFetch(`${API_BASE}/site-settings/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add_typewriter', text: newTwText, order: newTwOrder, color_class: newTwColor })
@@ -101,7 +101,7 @@ export default function AdminSiteSettingsPage() {
   const handleDeleteTypewriter = async (id: number) => {
     if (!confirm('از حذف این آیتم اطمینان دارید؟')) return;
     try {
-      await adminFetch(`${API_BASE}/admin/site-settings/`, {
+      await adminFetch(`${API_BASE}/site-settings/`, {
         method: 'POST', // Backend expects action in POST for this script
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_typewriter', id })

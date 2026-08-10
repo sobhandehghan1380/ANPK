@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [otpCode, setOtpCode] = useState(['', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [demoCodeNotice, setDemoCodeNotice] = useState('');
   const [countdown, setCountdown] = useState(120);
   const [canResend, setCanResend] = useState(false);
 
@@ -44,9 +43,6 @@ export default function LoginPage() {
         setStep('OTP');
         setCountdown(120);
         setCanResend(false);
-        if (res.demo_code) {
-          setDemoCodeNotice(res.demo_code);
-        }
       }
     } catch (err) {
       setErrorMsg('خطا در برقراری ارتباط با سرویس پیامک.');
@@ -67,13 +63,14 @@ export default function LoginPage() {
 
     try {
       const res = await verifyOTP(phone, fullCode);
-      if (res.error) {
-        setErrorMsg(res.error);
+      if (res.error || !res.access) {
+        setErrorMsg(res.error || 'ورود ناموفق بود. لطفاً دوباره تلاش کنید.');
       } else {
-        // Save auth state in localStorage
+        // Save JWT session issued for this organization member
         if (typeof window !== 'undefined') {
-          localStorage.setItem('anpk_user_logged_in', 'true');
-          localStorage.setItem('anpk_user_phone', phone);
+          localStorage.setItem('anpk_client_token', res.access);
+          localStorage.setItem('anpk_client_refresh', res.refresh);
+          localStorage.setItem('anpk_client_member', JSON.stringify(res.member || {}));
         }
         router.push('/portal');
       }

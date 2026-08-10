@@ -83,6 +83,7 @@ RICH_HL7_ARTICLE_CONTENT = """
 """
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def articles_list(request):
     articles = Article.objects.filter(status='PUBLISHED').order_by('-created_at')
     if not articles.exists():
@@ -142,6 +143,7 @@ def articles_list(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def article_detail(request, slug):
     try:
         a = Article.objects.get(slug=slug, status='PUBLISHED')
@@ -183,8 +185,8 @@ def article_detail(request, slug):
 @permission_classes([AllowAny])
 def article_comments(request, slug):
     """
-    GET /api/blog/articles/<slug>/comments/ - list approved comments
-    POST /api/blog/articles/<slug>/comments/ - submit a new comment
+    GET /api/v1/blog/articles/<slug>/comments/ - list approved comments
+    POST /api/v1/blog/articles/<slug>/comments/ - submit a new comment
     """
     try:
         article = Article.objects.get(slug=slug)

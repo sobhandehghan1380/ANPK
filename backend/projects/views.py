@@ -1,9 +1,147 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from django.db.models import Count, Q, Sum
+from django.utils.dateparse import parse_date
+from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from .models import ProjectCategory, Technology, PublicPortfolioProject, ClientContractProject, ProjectPhase
-from portal.models import ClientOrganization
+from accounts.models import Organization
+from integrations.models import SMSLog
+from accounts.selectors import get_current_member
+from services.models import AILog
+
+
+def _usage_date_range(request):
+    date_from_value = request.query_params.get('date_from')
+    date_to_value = request.query_params.get('date_to')
+    date_from = parse_date(date_from_value) if date_from_value else None
+    date_to = parse_date(date_to_value) if date_to_value else None
+    if date_from_value and not date_from:
+        return None, None, Response(
+            {'error': 'date_from باید با قالب YYYY-MM-DD ارسال شود.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if date_to_value and not date_to:
+        return None, None, Response(
+            {'error': 'date_to باید با قالب YYYY-MM-DD ارسال شود.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if date_from and date_to and date_from > date_to:
+        return None, None, Response(
+            {'error': 'date_from نمی‌تواند بعد از date_to باشد.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return date_from, date_to, None
+
+
+def _usage_log_limit(request):
+    try:
+        return max(1, min(int(request.query_params.get('limit', 50)), 100))
+    except (TypeError, ValueError):
+        return 50
+
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def project_usage(request, project_id):
+    """Return tenant-safe AI and SMS consumption for one contract project."""
+    project = ClientContractProject.objects.select_related('client').filter(id=project_id).first()
+    if not project:
+        return Response({'error': 'پروژه یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.user.is_staff:
+        access_scope = 'admin'
+    else:
+        member = get_current_member(request)
+        if not member or not member.organization.portal_access:
+            return Response({'error': 'دسترسی به پورتال این سازمان فعال نیست.'}, status=status.HTTP_403_FORBIDDEN)
+        if project.client_id != member.organization_id:
+            # Do not reveal whether another tenant's project exists.
+            return Response({'error': 'پروژه یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+        access_scope = 'organization'
+
+    date_from, date_to, date_error = _usage_date_range(request)
+    if date_error:
+        return date_error
+
+    ai_logs = AILog.objects.filter(project=project)
+    sms_logs = SMSLog.objects.filter(project=project)
+    if date_from:
+        ai_logs = ai_logs.filter(created_at__date__gte=date_from)
+        sms_logs = sms_logs.filter(sent_at__date__gte=date_from)
+    if date_to:
+        ai_logs = ai_logs.filter(created_at__date__lte=date_to)
+        sms_logs = sms_logs.filter(sent_at__date__lte=date_to)
+
+    ai_summary = ai_logs.aggregate(
+        request_count=Count('id'),
+        total_cost=Sum('cost_deducted'),
+    )
+    sms_summary = sms_logs.aggregate(
+        message_count=Count('id'),
+        total_cost=Sum('cost'),
+        delivered_count=Count(
+            'id',
+            filter=Q(status__iexact='delivered') | Q(status__iexact='sent'),
+        ),
+        failed_count=Count('id', filter=Q(status__iexact='failed')),
+    )
+    model_breakdown = list(
+        ai_logs.values('model_used')
+        .annotate(request_count=Count('id'), total_cost=Sum('cost_deducted'))
+        .order_by('-request_count', 'model_used')
+    )
+    limit = _usage_log_limit(request)
+
+    return Response({
+        'project': {
+            'id': project.id,
+            'title': project.title,
+            'contract_number': project.contract_number,
+            'organization_id': project.client_id,
+            'organization_name': project.client.name,
+        },
+        'access_scope': access_scope,
+        'period': {
+            'date_from': date_from.isoformat() if date_from else None,
+            'date_to': date_to.isoformat() if date_to else None,
+        },
+        'ai': {
+            'request_count': ai_summary['request_count'],
+            'total_cost': ai_summary['total_cost'] or 0,
+            'models': model_breakdown,
+            'logs': [{
+                'id': item.id,
+                'user_query': item.user_query,
+                'ai_response': item.ai_response,
+                'model_used': item.model_used,
+                'cost_deducted': item.cost_deducted,
+                'created_at': item.created_at.isoformat(),
+                'project_id': project.id,
+                'project_name': project.title,
+            } for item in ai_logs.order_by('-created_at')[:limit]],
+        },
+        'sms': {
+            'message_count': sms_summary['message_count'],
+            'total_cost': sms_summary['total_cost'] or 0,
+            'delivered_count': sms_summary['delivered_count'],
+            'failed_count': sms_summary['failed_count'],
+            'logs': [{
+                'id': item.id,
+                'recipient': item.recipient,
+                'text': item.text,
+                'operator': item.operator,
+                'cost': item.cost,
+                'status': item.status,
+                'sent_at': item.sent_at.isoformat(),
+                'project_id': project.id,
+                'project_title': project.title,
+            } for item in sms_logs.order_by('-sent_at')[:limit]],
+        },
+    })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def public_portfolio_projects(request):
     projects = PublicPortfolioProject.objects.filter(is_featured=True)
     if not projects.exists():
@@ -58,20 +196,14 @@ def public_portfolio_projects(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def client_portal_projects(request):
-    # Strict Phone-based Multi-Tenant Isolation
-    phone = request.GET.get('phone') or request.headers.get('X-User-Phone')
-    
-    if not phone:
-        return Response([], status=200)
+    # Multi-tenant isolation via the authenticated member's JWT — never a client-supplied phone
+    member = get_current_member(request)
+    if not member:
+        return Response({'error': 'دسترسی غیرمجاز. لطفاً مجدداً وارد پورتال شوید.'}, status=403)
 
-    phone_clean = phone.strip().replace('+98', '0')
-    client = ClientOrganization.objects.filter(phone__icontains=phone_clean).first()
-
-    if not client:
-        return Response([], status=200)
-
-    projects = ClientContractProject.objects.filter(client=client, is_active=True)
+    projects = ClientContractProject.objects.filter(client=member.organization, is_active=True)
 
     data = [{
         'id': p.id,
@@ -84,6 +216,7 @@ def client_portal_projects(request):
         'active_phase': p.active_phase_title,
         'delivery_date': p.delivery_date.strftime('%Y/%m/%d') if p.delivery_date else '',
         'login_url': p.login_url or '/portal',
+        'usage_api': f'/api/v1/projects/{p.id}/usage/',
         'phases': [{
             'number': phase.phase_number,
             'title': phase.title,

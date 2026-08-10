@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { adminFetch } from '@/lib/api';
@@ -22,7 +22,7 @@ export default function AdminTagsPage() {
   const loadTags = async () => {
     setLoading(true);
     try {
-      const data = await adminFetch(`${API_BASE}/api/admin/article-tags/`);
+      const data = await adminFetch(`${API_BASE}/api/v1/admin/article-tags/`);
       setTags(data || []);
     } catch (err) {
       console.error('Error loading tags:', err);
@@ -71,7 +71,7 @@ export default function AdminTagsPage() {
       const body: any = { name: tagName.trim(), slug: tagSlug.trim() };
       if (editId) body.id = editId;
 
-      const res = await adminFetch(`${API_BASE}/api/admin/article-tags/`, {
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/article-tags/`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -100,7 +100,7 @@ export default function AdminTagsPage() {
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`آیا از حذف برچسب "${name}" اطمینان دارید؟`)) return;
     try {
-      const res = await adminFetch(`${API_BASE}/api/admin/article-tags/?id=${id}`, {
+      const res = await adminFetch(`${API_BASE}/api/v1/admin/article-tags/?id=${id}`, {
         method: 'DELETE',
       });
       if (res?.message) {

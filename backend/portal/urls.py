@@ -30,7 +30,7 @@ urlpatterns = [
     
     # Admin - CRM & Clients
     path('admin/clients/', views.admin_clients, name='admin_clients'),
-    # Leads are managed via /api/leads/submit/ (POST for CRUD, GET for list)
+    # Leads are managed via /api/v1/leads/submit/ (POST for CRUD, GET for list)
     path('admin/leads/convert/', views.admin_convert_lead, name='admin_leads_convert'),
     
     # Admin - Finance
@@ -72,15 +72,17 @@ urlpatterns = [
     # ============================================
     # CLIENT PORTAL API - دسترسی با OTP یا JWT مشتری
     # ============================================
-    path('portal/auth/send-otp/', views.send_otp, name='send_otp'),
-    path('portal/auth/verify-otp/', views.verify_otp, name='verify_otp'),
     path('portal/overview/', views.portal_overview, name='portal_overview'),
     path('portal/wallet/', views.wallet_details, name='wallet_details'),
     path('portal/ai-usage/', views.ai_usage_logs, name='ai_usage_logs'),
     path('portal/invoices/', views.invoices_list, name='invoices_list'),
+    path('portal/sla-contracts/', views.sla_contracts_list, name='sla_contracts_list'),
     path('portal/api-keys/', views.api_keys_list, name='api_keys_list'),
     path('portal/sms-logs/', views.sms_logs_list, name='sms_logs_list'),
     path('portal/client/tickets/', views.tickets_list, name='tickets_list'),
     path('portal/client/tickets/reply/', views.reply_ticket, name='reply_ticket'),
     path('portal/client/notifications/', views.notifications_list, name='notifications_list'),
+    path('portal/client/finance/payment/request/', views.request_payment, name='request_payment'),
+    path('portal/client/finance/payment/verify/', views.verify_payment, name='verify_payment'),
+    path('portal/client/finance/payment/wallet/', views.pay_invoice_with_wallet, name='pay_invoice_with_wallet'),
 ]

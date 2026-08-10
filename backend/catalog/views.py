@@ -1,4 +1,5 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from .models import ProductCategory, Product, Solution
 
@@ -8,6 +9,7 @@ def split_lines(text):
     return [line.strip() for line in text.split('\n') if line.strip()]
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def products_list(request):
     products = Product.objects.filter(is_featured=True).order_by('order', 'id')
     
@@ -85,6 +87,7 @@ def products_list(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def product_detail(request, slug):
     try:
         p = Product.objects.get(slug=slug)
@@ -109,6 +112,7 @@ def product_detail(request, slug):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def solutions_list(request):
     solutions = Solution.objects.filter(is_featured=True).order_by('order', 'id')
 
@@ -165,6 +169,7 @@ def solutions_list(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def solution_detail(request, slug):
     try:
         s = Solution.objects.get(slug=slug)

@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { adminFetch } from '@/lib/api';
 import { Mail, CheckCircle2, Trash2, MailOpen, AlertCircle } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/admin';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000') + '/api/v1/admin';
 
 export default function AdminMessagesPage() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -13,7 +13,7 @@ export default function AdminMessagesPage() {
 
   const fetchMessages = async () => {
     try {
-      const res = await adminFetch(`${API_BASE}/admin/messages/`);
+      const res = await adminFetch(`${API_BASE}/messages/`);
       setMessages(res || []);
     } catch (err) {
       console.error('Error fetching messages:', err);
@@ -29,7 +29,7 @@ export default function AdminMessagesPage() {
   const handleMarkAsRead = async (id: number) => {
     setActionLoading(id);
     try {
-      await adminFetch(`${API_BASE}/admin/messages/`, {
+      await adminFetch(`${API_BASE}/messages/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'mark_read', id })
@@ -46,7 +46,7 @@ export default function AdminMessagesPage() {
     if (!confirm('آیا از حذف این پیام اطمینان دارید؟')) return;
     setActionLoading(id);
     try {
-      await adminFetch(`${API_BASE}/admin/messages/`, {
+      await adminFetch(`${API_BASE}/messages/`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
