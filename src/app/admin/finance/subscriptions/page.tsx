@@ -181,7 +181,7 @@ export default function AdminSubscriptionsPage() {
     } else if (statusFilter === 'expiring') {
       list = list.filter(sub => sub.status === "active" && sub.days_remaining <= 7 && sub.days_remaining >= 0);
     } else if (statusFilter === 'past_due') {
-      list = list.filter(sub => sub.status === "past_due");
+      list = list.filter(sub => sub.status === "past_due" || sub.periods?.some((period: any) => period.status === "INVOICED"));
     } else if (statusFilter === 'expired') {
       list = list.filter(sub => ["expired", "canceled"].includes(sub.status) || (sub.status === "active" && sub.days_remaining < 0));
     }
@@ -196,7 +196,7 @@ export default function AdminSubscriptionsPage() {
       total: subs.length,
       active: subs.filter((s: any) => s.status === "active" && s.days_remaining > 7).length,
       expiring: subs.filter((s: any) => s.status === "active" && s.days_remaining <= 7 && s.days_remaining >= 0).length,
-      pastDue: subs.filter((s: any) => s.status === "past_due").length,
+      pastDue: subs.filter((s: any) => s.status === "past_due" || s.periods?.some((period: any) => period.status === "INVOICED")).length,
       expired: subs.filter((s: any) => ["expired", "canceled"].includes(s.status) || (s.status === "active" && s.days_remaining < 0)).length,
     };
   }, [data]);
@@ -353,10 +353,14 @@ export default function AdminSubscriptionsPage() {
           filteredSubs.map((sub: any) => {
             const isExpiringSoon = sub.status === "active" && sub.days_remaining <= 7 && sub.days_remaining >= 0;
             const isPendingPayment = sub.status === "past_due";
+            const hasOpenRenewal = sub.status === "active" && sub.periods?.some((period: any) => period.status === "INVOICED");
+            const requiresPayment = isPendingPayment || hasOpenRenewal;
             const isCanceled = sub.status === "canceled";
             const isExpired = ["expired", "canceled"].includes(sub.status) || (sub.status === "active" && sub.days_remaining < 0);
             const statusLabel = isPendingPayment
-              ? "در انتظار پرداخت"
+              ? "در انتظار پرداخت دوره نخست"
+              : hasOpenRenewal
+                ? "فعال · فاکتور تمدید باز"
               : isCanceled
                 ? "لغوشده"
                 : isExpired
@@ -371,7 +375,7 @@ export default function AdminSubscriptionsPage() {
               <div 
                 key={sub.id} 
                 className={`rounded-2xl border-2 overflow-hidden transition-all hover:shadow-lg ${
-                  isPendingPayment
+                  requiresPayment
                     ? 'border-sky-300 dark:border-sky-500/30'
                     : isExpired 
                     ? 'border-rose-200 dark:border-rose-900/30 opacity-75' 
@@ -381,7 +385,7 @@ export default function AdminSubscriptionsPage() {
                 }`}
               >
                 <div className={`p-4 ${
-                  isPendingPayment
+                  requiresPayment
                     ? 'bg-sky-50 dark:bg-sky-900/10'
                     : isExpired 
                     ? 'bg-rose-50 dark:bg-rose-900/10' 
@@ -398,7 +402,7 @@ export default function AdminSubscriptionsPage() {
                       </div>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                      isPendingPayment
+                      requiresPayment
                         ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
                         : isExpired 
                         ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' 
@@ -432,7 +436,7 @@ export default function AdminSubscriptionsPage() {
                     </span>
                   </div>
 
-                  {isPendingPayment && (
+                  {requiresPayment && (
                     <div className="pt-3 border-t dark:border-slate-800 border-slate-200 flex gap-2">
                       <Link
                         href="/admin/finance/invoices"
@@ -449,7 +453,7 @@ export default function AdminSubscriptionsPage() {
                     </div>
                   )}
 
-                  {["active", "expired"].includes(sub.status) && (
+                  {!requiresPayment && ["active", "expired"].includes(sub.status) && (
                     <div className="pt-3 border-t dark:border-slate-800 border-slate-200 flex gap-2">
                       <button
                         onClick={() => handleRenewSub(sub.id)}
