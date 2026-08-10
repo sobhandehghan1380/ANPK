@@ -62,68 +62,91 @@ def admin_pricing_plans(request):
 def admin_subscriptions(request):
     """
     API for Managing Client Subscriptions
+    Standard SaaS subscription lifecycle:
+    - trialing: In free trial period
+    - active: Active and paid
+    - past_due: Payment overdue
+    - canceled: Canceled by customer
+    - expired: Subscription ended
     """
     if request.method == 'POST':
         action = request.data.get('action')
         
+        # Cancel subscription
         if action == 'cancel_subscription':
             sub_id = request.data.get('subscription_id')
+            cancellation_reason = request.data.get('reason', '')
             try:
                 sub = ClientSubscription.objects.get(id=sub_id)
-                sub.is_active = False
+                sub.status = 'canceled'
+                sub.canceled_at = timezone.now()
+                sub.cancellation_reason = cancellation_reason
                 sub.auto_renew = False
                 sub.save()
                 return Response({'message': 'اشتراک با موفقیت لغو شد.'})
             except ClientSubscription.DoesNotExist:
                 return Response({'error': 'اشتراک یافت نشد.'}, status=404)
 
+        # Renew subscription
         if action == 'renew_subscription':
             sub_id = request.data.get('subscription_id')
             try:
                 sub = ClientSubscription.objects.get(id=sub_id)
                 from datetime import timedelta
                 sub.end_date = sub.end_date + timedelta(days=365)
-                sub.is_active = True
+                sub.status = 'active'
                 sub.save()
                 return Response({'message': 'اشتراک با موفقیت تمدید شد.'})
             except ClientSubscription.DoesNotExist:
                 return Response({'error': 'اشتراک یافت نشد.'}, status=404)
 
+        # Create subscription
         if action == 'create_subscription':
             client_id = request.data.get('client_id')
-            custom_plan = request.data.get('custom_plan')
             months = int(request.data.get('months', 1))
             auto_renew = request.data.get('auto_renew', False)
+            use_custom_plan = request.data.get('use_custom_plan', False)
 
             from datetime import datetime, timedelta
             start_date = datetime.now().date()
             end_date = start_date + timedelta(days=30 * months)
 
-            # Handle custom plan
-            if custom_plan:
-                plan_name = custom_plan.get('name', 'پلن اختصاصی')
-                # Create a temporary pricing plan for this subscription
-                plan = PricingPlan.objects.create(
-                    name=f"{plan_name} (اختصاصی)",
-                    monthly_price=int(custom_plan.get('monthly_price', 0)),
-                    yearly_price=int(custom_plan.get('yearly_price', 0)),
-                    features_list=custom_plan.get('description', ''),
-                    is_active=True
-                )
-                plan_id = plan.id
+            # Create subscription data
+            sub_data = {
+                'client_id': client_id,
+                'start_date': start_date,
+                'end_date': end_date,
+                'auto_renew': auto_renew,
+            }
+
+            if use_custom_plan:
+                # Custom plan for this specific customer
+                custom_plan = request.data.get('custom_plan', {})
+                sub_data['is_custom_plan'] = True
+                sub_data['custom_plan_name'] = custom_plan.get('name', 'پلن اختصاصی')
+                sub_data['custom_monthly_price'] = int(custom_plan.get('monthly_price', 0))
+                sub_data['custom_yearly_price'] = int(custom_plan.get('yearly_price', 0))
+                sub_data['custom_description'] = custom_plan.get('description', '')
+                sub_data['status'] = 'active'
             else:
+                # Standard plan
                 plan_id = request.data.get('plan_id')
                 if not plan_id:
                     return Response({'error': 'لطفاً پلن را انتخاب کنید.'}, status=400)
+                sub_data['plan_id'] = plan_id
+                
+                # Check if plan has trial period
+                try:
+                    plan = PricingPlan.objects.get(id=plan_id)
+                    if plan.trial_days > 0:
+                        sub_data['status'] = 'trialing'
+                        sub_data['trial_end'] = start_date + timedelta(days=plan.trial_days)
+                    else:
+                        sub_data['status'] = 'active'
+                except PricingPlan.DoesNotExist:
+                    sub_data['status'] = 'active'
 
-            sub = ClientSubscription.objects.create(
-                client_id=client_id,
-                plan_id=plan_id,
-                start_date=start_date,
-                end_date=end_date,
-                auto_renew=auto_renew,
-                is_active=True
-            )
+            sub = ClientSubscription.objects.create(**sub_data)
             return Response({'message': 'اشتراک جدید با موفقیت ثبت شد.', 'id': sub.id})
 
         return Response({'error': 'عملیات نامعتبر.'}, status=400)
@@ -132,22 +155,37 @@ def admin_subscriptions(request):
         ClientSubscription.objects.filter(id=request.data.get('id')).delete()
         return Response({'message': 'اشتراک با موفقیت حذف شد.'})
 
-    subs = ClientSubscription.objects.select_related('client', 'plan').all().order_by('-start_date')
+    # GET - List all subscriptions with related data
+    subs = ClientSubscription.objects.select_related('client', 'plan').all().order_by('-created_at')
     data = [{
         'id': s.id,
         'client_name': s.client.name,
         'client_id': s.client.id,
-        'plan_name': s.plan.name if s.plan else 'نامشخص',
+        'plan_name': s.plan.name if s.plan else (s.custom_plan_name or 'نامشخص'),
+        'is_custom_plan': s.is_custom_plan,
+        'status': s.status,
         'start_date': s.start_date.strftime('%Y-%m-%d'),
         'end_date': s.end_date.strftime('%Y-%m-%d'),
+        'trial_end': s.trial_end.strftime('%Y-%m-%d') if s.trial_end else None,
         'auto_renew': s.auto_renew,
-        'is_active': s.is_active,
+        'canceled_at': s.canceled_at.strftime('%Y-%m-%d') if s.canceled_at else None,
+        'cancellation_reason': s.cancellation_reason,
         'days_remaining': (s.end_date - __import__('datetime').datetime.now().date()).days,
+        'monthly_price': s.custom_monthly_price if s.is_custom_plan else (s.plan.monthly_price if s.plan else 0),
     } for s in subs]
     
     # Also return clients and plans for the form dropdowns
     clients = [{'id': c.id, 'name': c.name} for c in ClientOrganization.objects.all()]
-    plans = [{'id': p.id, 'name': p.name, 'monthly_price': p.monthly_price} for p in PricingPlan.objects.filter(is_active=True)]
+    plans = [{
+        'id': p.id,
+        'name': p.name,
+        'monthly_price': p.monthly_price,
+        'yearly_price': p.yearly_price,
+        'server_cost': p.server_cost,
+        'support_cost': p.support_cost,
+        'trial_days': p.trial_days,
+        'min_months': p.min_months,
+    } for p in PricingPlan.objects.filter(is_active=True)]
     
     return Response({'subscriptions': data, 'clients': clients, 'plans': plans})
 
