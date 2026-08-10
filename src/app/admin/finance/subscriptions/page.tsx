@@ -20,6 +20,8 @@ export default function AdminSubscriptionsPage() {
   const [customPlanName, setCustomPlanName] = useState('');
   const [customMonthlyPrice, setCustomMonthlyPrice] = useState(0);
   const [customYearlyPrice, setCustomYearlyPrice] = useState(0);
+  const [customServerCost, setCustomServerCost] = useState(0);
+  const [customSupportCost, setCustomSupportCost] = useState(0);
   const [customDescription, setCustomDescription] = useState('');
   const [months, setMonths] = useState(1);
   const [autoRenew, setAutoRenew] = useState(false);
@@ -49,7 +51,7 @@ export default function AdminSubscriptionsPage() {
   const resetForm = () => {
     setClientId(''); setPlanId(''); setMonths(1); setAutoRenew(false);
     setActiveTab('ready');
-    setCustomPlanName(''); setCustomMonthlyPrice(0); setCustomYearlyPrice(0); setCustomDescription('');
+    setCustomPlanName(''); setCustomMonthlyPrice(0); setCustomYearlyPrice(0); setCustomDescription(''); setCustomServerCost(0); setCustomSupportCost(0);
   };
 
   const openSubscriptionModal = () => {
@@ -94,7 +96,9 @@ export default function AdminSubscriptionsPage() {
           name: customPlanName,
           monthly_price: customMonthlyPrice,
           yearly_price: customYearlyPrice,
-          description: customDescription
+          description: customDescription,
+          server_cost: customServerCost,
+          support_cost: customSupportCost
         };
       } else {
         subscriptionData.plan_id = parseInt(planId);
@@ -286,7 +290,6 @@ export default function AdminSubscriptionsPage() {
           </div>
           <div className="flex gap-2">
             {[
-              { id: 'all', label: 'همه' },
               { id: 'all', label: 'همه' },
               { id: 'trialing', label: 'در تست' },
               { id: 'active', label: 'فعال' },
@@ -530,6 +533,29 @@ export default function AdminSubscriptionsPage() {
                         min="0"
                         value={customYearlyPrice} 
                         onChange={e => setCustomYearlyPrice(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-400 block">هزینه سرور (ماهانه):</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={customServerCost} 
+                        onChange={e => setCustomServerCost(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-400 block">هزینه پشتیبانی (ماهانه):</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={customSupportCost} 
+                        onChange={e => setCustomSupportCost(Number(e.target.value))}
                         className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-brand-500 font-mono"
                       />
                     </div>

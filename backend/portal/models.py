@@ -239,6 +239,8 @@ class ClientSubscription(models.Model):
     custom_plan_name = models.CharField(max_length=150, blank=True, null=True, verbose_name="نام پلن اختصاصی")
     custom_monthly_price = models.IntegerField(default=0, verbose_name="قیمت ماهانه اختصاصی")
     custom_yearly_price = models.IntegerField(default=0, verbose_name="قیمت سالانه اختصاصی")
+    custom_server_cost = models.IntegerField(default=0, verbose_name='هزینه سرور اختصاصی')
+    custom_support_cost = models.IntegerField(default=0, verbose_name='هزینه پشتیبانی اختصاصی')
     custom_description = models.TextField(blank=True, null=True, verbose_name="توضیحات پلن اختصاصی")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='trialing', verbose_name="وضعیت اشتراک")
     start_date = models.DateField(default=timezone.now, verbose_name="تاریخ شروع")

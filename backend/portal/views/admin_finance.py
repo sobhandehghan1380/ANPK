@@ -127,6 +127,8 @@ def admin_subscriptions(request):
                 sub_data['custom_monthly_price'] = int(custom_plan.get('monthly_price', 0))
                 sub_data['custom_yearly_price'] = int(custom_plan.get('yearly_price', 0))
                 sub_data['custom_description'] = custom_plan.get('description', '')
+                sub_data['custom_server_cost'] = int(custom_plan.get('server_cost', 0))
+                sub_data['custom_support_cost'] = int(custom_plan.get('support_cost', 0))
                 sub_data['status'] = 'active'
             else:
                 # Standard plan
