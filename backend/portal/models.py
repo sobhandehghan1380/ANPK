@@ -23,11 +23,22 @@ class ClientOrganization(models.Model):
     name = models.CharField(max_length=255, verbose_name="نام سازمان / بیمارستان")
     contact_person = models.CharField(max_length=150, verbose_name="نام رابط اصلی سازمان")
     phone = models.CharField(max_length=50, db_index=True, verbose_name="شماره تماس سازمان")
+    email = models.EmailField(blank=True, null=True, verbose_name="ایمیل سازمان")
+    address = models.TextField(blank=True, null=True, verbose_name="آدرس سازمان")
+    national_code = models.CharField(max_length=50, blank=True, null=True, verbose_name="کد اقتصادی / شناسه ملی")
+    website = models.URLField(blank=True, null=True, verbose_name="وب‌سایت سازمان")
+    description = models.TextField(blank=True, null=True, verbose_name="توضیحات / یادداشت")
+    logo_url = models.CharField(max_length=500, blank=True, default="", verbose_name="آدرس لوگوی سازمان")
+    tags = models.CharField(max_length=500, blank=True, default="", verbose_name="برچسب‌ها (با کاما جدا کنید)")
+    portal_access = models.BooleanField(default=True, verbose_name="دسترسی به پورتال")
     created_at = models.DateTimeField(default=timezone.now, verbose_name="تاریخ ثبت سازمان")
 
     def __str__(self):
         owner_info = f" - مالک: {self.owner_user.username}" if self.owner_user else ""
         return f"{self.name}{owner_info}"
+
+    def get_tags_list(self):
+        return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
 
     class Meta:
         verbose_name = "سازمان / مشتری"

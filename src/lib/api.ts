@@ -276,9 +276,7 @@ export async function getAdminSMSLogs() {
 
 export async function getAdminClients() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/portal/admin/clients/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/portal/admin/clients/`);
   } catch (error) {
     return [];
   }
@@ -286,13 +284,11 @@ export async function getAdminClients() {
 
 export async function createAdminClient(name: string, contactPerson: string, phone: string, userId?: number) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/portal/admin/clients/`, {
+    return await adminFetch(`${API_BASE_URL}/api/portal/admin/clients/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, contact_person: contactPerson, phone, user_id: userId })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }

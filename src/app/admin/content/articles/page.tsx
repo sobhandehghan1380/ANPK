@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   BookOpen, PlusCircle, CheckCircle2, Eye, Trash2, FolderPlus, Tag,
   Edit, Search, Filter, X, ChevronLeft, ChevronRight, Star, Clock,
-  Archive, AlertCircle, BarChart2, Globe, MessageCircle
+  Archive, AlertCircle, BarChart2, Globe, MessageCircle, Calendar
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -195,6 +195,18 @@ export default function AdminArticlesPage() {
           <Link href="/admin/content/comments"
             className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
             <MessageCircle className="w-3.5 h-3.5" /> نظرات کاربران
+          </Link>
+          <Link href="/admin/content/tags"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5" /> برچسب‌ها
+          </Link>
+          <Link href="/admin/content"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            <BarChart2 className="w-3.5 h-3.5" /> آمار وبلاگ
+          </Link>
+          <Link href="/admin/content/scheduled"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5" /> زمان‌بندی
           </Link>
         </div>
       </div>

@@ -366,7 +366,7 @@ export default async function HomePage() {
                 '/images/bg/prod_tasisat.jpg',
                 '/images/bg/prod_nikilink.jpg',
               ];
-              const logoImg = prodImages[idx % prodImages.length];
+              const logoImg = prod.image_url || prodImages[idx % prodImages.length];
 
               return (
                 <ScrollReveal key={prod.id} variant="fade-up" delay={idx * 100}>
