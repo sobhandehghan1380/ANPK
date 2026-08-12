@@ -142,6 +142,7 @@ def admin_projects(request):
         data.append({
             'id': p.id,
             'title': p.title,
+            'client_id': p.client.id if p.client else None,
             'client_name': p.client.name if p.client else 'سازمان ثبت‌نشده',
             'contract_number': p.contract_number,
             'active_phase_title': p.active_phase_title,
@@ -186,26 +187,50 @@ def admin_portfolio_projects(request):
         full_description = request.data.get('full_description', '')
         meta_title = request.data.get('meta_title', '')
         meta_description = request.data.get('meta_description', '')
+        demo_url = request.data.get('demo_url', '')
+        image_url = request.data.get('image_url', '')
+        category_id = request.data.get('category_id')
+        technology_ids = request.data.get('technology_ids', [])
 
-        proj = PublicPortfolioProject.objects.create(
-            title=title, summary=summary, client_name_display=client_name_display,
-            sprint_progress=sprint_progress, is_featured=bool(is_featured), slug=slug,
-            full_description=full_description, meta_title=meta_title, meta_description=meta_description
-        )
-        return Response({'message': f'پروژه نمونه‌کار "{title}" به پورتفولیو اضافه شد.', 'id': proj.id})
+        category = ProjectCategory.objects.filter(id=category_id).first() if category_id else None
+
+        try:
+            proj = PublicPortfolioProject.objects.create(
+                title=title, summary=summary, client_name_display=client_name_display,
+                sprint_progress=sprint_progress, is_featured=bool(is_featured), slug=slug,
+                full_description=full_description, meta_title=meta_title, meta_description=meta_description,
+                demo_url=demo_url, image_url=image_url, category=category
+            )
+
+            if technology_ids:
+                proj.technologies.set(Technology.objects.filter(id__in=technology_ids))
+
+            return Response({'message': f'پروژه نمونه‌کار "{title}" به پورتفولیو اضافه شد.', 'id': proj.id})
+        except Exception as e:
+            return Response({'error': f'خطا در ایجاد پروژه: {str(e)}'}, status=400)
         
     elif request.method == 'PUT':
         item_id = request.data.get('id')
         try:
             proj = PublicPortfolioProject.objects.get(id=item_id)
-            if 'title' in request.data: proj.title = request.data['title']
-            if 'summary' in request.data: proj.summary = request.data['summary']
-            if 'client_name_display' in request.data: proj.client_name_display = request.data['client_name_display']
-            if 'sprint_progress' in request.data: proj.sprint_progress = int(request.data['sprint_progress'])
-            if 'is_featured' in request.data: proj.is_featured = bool(request.data['is_featured'])
-            if 'full_description' in request.data: proj.full_description = request.data['full_description']
-            if 'meta_title' in request.data: proj.meta_title = request.data['meta_title']
-            if 'meta_description' in request.data: proj.meta_description = request.data['meta_description']
+            fields = ['title', 'slug', 'summary', 'client_name_display', 'sprint_progress', 
+                      'is_featured', 'full_description', 'meta_title', 'meta_description', 'demo_url', 'image_url']
+            for f in fields:
+                if f in request.data:
+                    if f == 'is_featured':
+                        setattr(proj, f, bool(request.data[f]))
+                    elif f == 'sprint_progress':
+                        setattr(proj, f, int(request.data[f]))
+                    else:
+                        setattr(proj, f, request.data[f])
+            
+            if 'category_id' in request.data:
+                cat_id = request.data['category_id']
+                proj.category = ProjectCategory.objects.filter(id=cat_id).first() if cat_id else None
+            
+            if 'technology_ids' in request.data:
+                proj.technologies.set(Technology.objects.filter(id__in=request.data['technology_ids']))
+            
             proj.save()
             return Response({'message': 'نمونه‌کار با موفقیت ویرایش شد.'})
         except PublicPortfolioProject.DoesNotExist:
@@ -228,10 +253,14 @@ def admin_portfolio_projects(request):
         'full_description': p.full_description,
         'meta_title': p.meta_title,
         'meta_description': p.meta_description,
+        'demo_url': p.demo_url,
+        'image_url': p.image_url,
         'client_name_display': p.client_name_display,
+        'category_id': p.category.id if p.category else None,
         'category_name': p.category.name if p.category else 'عمومی',
         'sprint_progress': p.sprint_progress,
         'is_featured': p.is_featured,
+        'technology_ids': [t.id for t in p.technologies.all()],
         'technologies': [t.name for t in p.technologies.all()],
         'created_at': p.created_at.strftime('%Y/%m/%d') if p.created_at else ''
     } for p in projects]
@@ -250,13 +279,21 @@ def admin_project_metadata(request):
         if action == 'add_category':
             name = request.data.get('name')
             if name:
-                ProjectCategory.objects.create(name=name, slug=name.replace(' ', '-').lower())
+                slug = name.replace(' ', '-').lower()
+                if ProjectCategory.objects.filter(slug=slug).exists():
+                    return Response({'error': 'دسته‌بندی با این نام قبلاً وجود دارد.'}, status=400)
+                ProjectCategory.objects.create(name=name, slug=slug)
                 return Response({'message': 'دسته‌بندی جدید ایجاد شد'})
+            return Response({'error': 'نام دسته‌بندی الزامی است.'}, status=400)
         elif action == 'add_technology':
             name = request.data.get('name')
             if name:
-                Technology.objects.create(name=name, icon_class=request.data.get('icon_class', 'code'))
+                if Technology.objects.filter(name=name).exists():
+                    return Response({'error': 'تکنولوژی با این نام قبلاً وجود دارد.'}, status=400)
+                Technology.objects.create(name=name, category=request.data.get('category', 'بک‌اند'))
                 return Response({'message': 'تکنولوژی جدید ایجاد شد'})
+            return Response({'error': 'نام تکنولوژی الزامی است.'}, status=400)
+        return Response({'error': 'عملیات نامعتبر.'}, status=400)
                 
     elif request.method == 'DELETE':
         action = request.data.get('action')
@@ -279,7 +316,7 @@ def admin_project_metadata(request):
     
     data = {
         'categories': [{'id': c.id, 'name': c.name, 'slug': c.slug} for c in categories],
-        'technologies': [{'id': t.id, 'name': t.name, 'icon_class': t.icon_class} for t in technologies]
+        'technologies': [{'id': t.id, 'name': t.name, 'category': t.category} for t in technologies]
     }
     return Response(data)
 

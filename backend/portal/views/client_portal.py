@@ -422,8 +422,10 @@ def request_payment(request):
         return Response({'error': 'Invoice is already paid'}, status=400)
         
     # Mocking IPG Request
+    import os
+    frontend_url = os.getenv('NEXT_PUBLIC_API_URL') or os.getenv('FRONTEND_URL') or 'http://localhost:3000'
     authority = f"A{random.randint(100000000000, 999999999999)}"
-    payment_url = f"{process.env.NEXT_PUBLIC_API_URL or 'http://localhost:3000'}/portal/finance/payment/gateway?authority={authority}&amount={invoice.total_amount}&invoice={invoice.id}"
+    payment_url = f"{frontend_url}/portal/finance/payment/gateway?authority={authority}&amount={invoice.total_amount}&invoice={invoice.id}"
     
     return Response({
         'authority': authority,
@@ -465,7 +467,7 @@ def verify_payment(request):
             import datetime
             # Extend for 30 days (mock logic for monthly)
             invoice.subscription.end_date += datetime.timedelta(days=30)
-            invoice.subscription.is_active = True
+            invoice.subscription.status = 'active'
             invoice.subscription.save()
             
         # If wallet recharge

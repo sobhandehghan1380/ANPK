@@ -23,8 +23,15 @@ def project_leads_list(request):
             'ld_id': f"LD-{l.id}",
             'company': l.company_name,
             'contact': f"{l.contact_person} ({l.phone})",
+            'contact_person': l.contact_person,
+            'phone': l.phone,
+            'email': l.email,
             'service': l.service_type,
             'budget': l.budget_range,
+            'timeline': l.timeline,
+            'priority': l.priority,
+            'source': l.source,
+            'assigned_to': l.assigned_to,
             'date': l.created_at.strftime('%Y/%m/%d'),
             'status': l.status,
             'activities': [{
@@ -79,8 +86,13 @@ def project_leads_list(request):
             company_name=company_name,
             contact_person=contact_person or 'نامشخص',
             phone=phone,
+            email=request.data.get('email', ''),
             service_type=service_type,
             budget_range=budget_range,
+            timeline=request.data.get('timeline', ''),
+            priority=request.data.get('priority', 'warm'),
+            source=request.data.get('source', ''),
+            assigned_to=request.data.get('assigned_to', ''),
             status='new'
         )
 

@@ -11,7 +11,7 @@ sys.path.insert(0, str(BASE_DIR))
 # ─────────────────────────────────────────────
 SECRET_KEY = config('DJANGO_SECRET_KEY', default='django-insecure-dev-only-key')
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,0.0.0.0,testserver,*', cast=Csv())
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -90,9 +90,16 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS — در dev همه مجازند، در prod محدود شود
 # ─────────────────────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 # ─────────────────────────────────────────────

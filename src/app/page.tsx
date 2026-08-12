@@ -300,7 +300,7 @@ export default async function HomePage() {
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {solutions.slice(0, 5).map((sol, idx) => {
+          {solutions.slice(0, 5).map((sol: any, idx: number) => {
             const isFeatured = idx === 0;
             return (
               <ScrollReveal key={sol.id} variant="fade-up" delay={idx * 100} className={isFeatured ? "md:col-span-2 lg:col-span-2" : ""}>
@@ -359,14 +359,14 @@ export default async function HomePage() {
           </ScrollReveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {products.map((prod, idx) => {
+            {products.map((prod: any, idx: number) => {
               // Image Logos for Products
               const prodImages = [
                 '/images/bg/prod_aira.jpg',
                 '/images/bg/prod_tasisat.jpg',
                 '/images/bg/prod_nikilink.jpg',
               ];
-              const logoImg = prodImages[idx % prodImages.length];
+              const logoImg = prod.image_url || prodImages[idx % prodImages.length];
 
               return (
                 <ScrollReveal key={prod.id} variant="fade-up" delay={idx * 100}>
@@ -455,7 +455,7 @@ export default async function HomePage() {
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((proj, idx) => {
+          {projects.map((proj: any, idx: number) => {
             // Client Image Logos
             const projImages = [
               '/images/bg/proj_his.jpg',
@@ -619,7 +619,7 @@ export default async function HomePage() {
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {articles.map((art, idx) => {
+          {articles.map((art: any, idx: number) => {
             const isFeatured = idx === 0;
             // Article Cover Images
             const articleImages = [

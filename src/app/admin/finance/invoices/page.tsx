@@ -43,11 +43,12 @@ export default function InvoicesPage() {
   const loadData = async () => {
     try {
       const res = await getAdminInvoices();
+      console.log('Invoices API Response:', res);
       setInvoices(res?.invoices || []);
       setClients(res?.clients || []);
       setSubscriptions(res?.subscriptions || []);
     } catch (err) {
-      console.error(err);
+      console.error('Error loading invoices:', err);
     } finally {
       setLoading(false);
     }

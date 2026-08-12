@@ -89,7 +89,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     );
   }
 
-  const sidebarMenu = [
+  const sidebarMenu: Array<{ href: string; label: string; icon: any; activeColor: string; badge?: string }> = [
     { href: '/portal', label: 'داشبورد کلی', icon: Layers, activeColor: 'from-brand-600 to-brand-500' },
     { href: '/portal/projects', label: 'پروژه‌ها', icon: FolderGit2, activeColor: 'from-indigo-600 to-purple-600' },
     { href: '/portal/wallet', label: 'کیف پول', icon: Wallet, activeColor: 'from-emerald-600 to-teal-600' },

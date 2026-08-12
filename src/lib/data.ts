@@ -13,18 +13,47 @@ export async function getHeroData() {
 export async function getProducts(includeDraft = false) {
   try {
     const products = await fetchProducts();
-    return products.map((p: any) => ({
-      id: p.slug || p.id,
-      title: p.name,
-      slug: p.slug,
-      category: p.category,
-      status: p.status,
-      summary: p.description || p.short_description,
-      features: ['معماری میکروسرویس', 'انطباق با قوانین امنیتی', 'پشتیبانی SLA ۲۴/۷'],
-      userRoles: ['مدیران ارشد', 'کارشناسان فنی'],
-      workflow: [],
-      faq: []
-    }));
+    return products.map((p: any) => {
+      // Parse features_list into array
+      const features = p.features_list 
+        ? p.features_list.split('\n').filter((f: string) => f.trim())
+        : ['معماری میکروسرویس', 'انطباق با قوانین امنیتی', 'پشتیبانی SLA ۲۴/۷'];
+      
+      // Parse technical_specs into workflow
+      const workflow = p.technical_specs
+        ? p.technical_specs.split('\n').filter((s: string) => s.trim()).map((s: string, i: number) => ({
+            step: String(i + 1).padStart(2, '۰'),
+            title: s.trim(),
+            desc: s.trim()
+          }))
+        : [];
+
+      return {
+        id: p.slug || p.id,
+        title: p.name,
+        slug: p.slug,
+        category: p.category_name || p.category,
+        status: p.status,
+        isPublic: p.status !== 'draft',
+        summary: p.short_description,
+        description: p.full_description || p.short_description,
+        valueProposition: p.full_description || p.short_description,
+        features: features.length > 0 ? features : ['معماری میکروسرویس', 'انطباق با قوانین امنیتی', 'پشتیبانی SLA ۲۴/۷'],
+        userRoles: [
+          { role: 'مدیران ارشد', desc: 'دسترسی به داشبوردهای مدیریتی و گزارش‌گیری' },
+          { role: 'کارشناسان فنی', desc: 'استفاده از ابزارهای تخصصی و عملیاتی' }
+        ],
+        workflow: workflow.length > 0 ? workflow : [
+          { step: '۱', title: 'نیازسنجی', desc: 'تحلیل نیازمندی‌ها و ارزیابی زیرساخت' },
+          { step: '۲', title: 'پیاده‌سازی', desc: 'توسعه و استقرار محصول بر اساس نیاز' },
+          { step: '۳', title: 'پشتیبانی', desc: 'پشتیبانی ۲۴/۷ و بروزرسانی مستمر' }
+        ],
+        faq: [],
+        deliveryModel: 'SaaS / On-Premise',
+        image_url: p.image_url,
+        demo_url: p.demo_url
+      };
+    }).filter((p: any) => includeDraft || p.isPublic);
   } catch (error) {
     console.error('Error fetching products from Django:', error);
     return [];
@@ -32,7 +61,7 @@ export async function getProducts(includeDraft = false) {
 }
 
 export async function getProductBySlug(slug: string) {
-  const products = await getProducts();
+  const products = await getProducts(true);
   return products.find((p: any) => p.slug === slug) || products[0] || null;
 }
 
@@ -65,21 +94,27 @@ export async function getProjects() {
       id: p.id,
       slug: p.slug || `project-${p.id}`,
       title: p.title,
-      clientName: p.client_display || p.client_name_display || p.organization || 'دانشگاه‌ها و سازمان‌های بزرگ کشور',
-      domain: p.category || 'پلتفرم سازمانی',
+      clientName: p.client_display || p.client_name_display || p.organization || (p.client ? p.client.name : 'سازمان'),
+      domain: p.category || (p.category_name ? p.category_name : 'پلتفرم سازمانی'),
       summary: p.summary || p.description || 'توسعه و استقرار پلتفرم اختصاصی سازمانی با پایداری ۹۹.۹٪.',
       fullDescription: p.full_description || '',
       metaTitle: p.meta_title || '',
       metaDescription: p.meta_description || '',
-      results: p.features || ['استقرار میکروسرویس‌های بومی', 'کاهش ۳۵٪ توقف‌های کاری', 'پشتیبانی ۲۴/۷ SLA'],
-      progress: p.progress || 100,
-      activePhase: p.active_phase || p.phase || 'در حال بهره‌برداری',
+      results: Array.isArray(p.results) ? p.results : ['استقرار میکروسرویس‌های بومی', 'کاهش ۳۵٪ توقف‌های کاری', 'پشتیبانی ۲۴/۷ SLA'],
+      features: Array.isArray(p.features) ? p.features : ['معماری ابری و ماژولار', 'امنیت داده‌ها و ایزوله‌سازی دسترسی', 'پشتیبانی SLA ۲۴/۷'],
+      progress: p.progress || p.sprint_progress || 100,
+      activePhase: p.active_phase || p.phase || p.active_phase_title || 'در حال بهره‌برداری',
       status: 'در حال بهره‌برداری'
     }));
   } catch (error) {
     console.error('Error fetching projects from Django:', error);
     return [];
   }
+}
+
+export async function getProjectBySlug(slug: string) {
+  const projects = await getProjects();
+  return projects.find((p: any) => p.slug === slug) || null;
 }
 
 export async function getArticles() {
