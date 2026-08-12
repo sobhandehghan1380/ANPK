@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
 from .models import ArticleCategory, Article, ArticleComment
+from django.utils import timezone
 import json
 
 RICH_CMMS_ARTICLE_CONTENT = """
@@ -234,9 +235,11 @@ def admin_comments(request):
     """
     Admin API for managing all comments
     GET - list all comments with filter ?status=PENDING|APPROVED|REJECTED
+    POST - reply to a comment: {ticket_id: id, message: text}
     PUT - approve/reject a comment: {id, status}
     DELETE - delete a comment: {id} or ?id=
     """
+    from blog.models import Article, ArticleComment
     if request.method == 'GET':
         status_filter = request.query_params.get('status')
         qs = ArticleComment.objects.select_related('article', 'parent').order_by('-created_at')
@@ -256,6 +259,36 @@ def admin_comments(request):
         } for c in qs]
         pending_count = ArticleComment.objects.filter(status='PENDING').count()
         return Response({'comments': data, 'pending_count': pending_count})
+
+    elif request.method == 'POST':
+        # Reply to comment
+        comment_id = request.data.get('comment_id')
+        message = request.data.get('message', '').strip()
+        if not comment_id or not message:
+            return Response({'error': 'شناسه نظر و متن پاسخ الزامی است.'}, status=400)
+        try:
+            parent_comment = ArticleComment.objects.get(id=comment_id)
+            if len(message) < 5:
+                return Response({'error': 'پاسخ باید حداقل ۵ کاراکتر باشد.'}, status=400)
+            if len(message) > 2000:
+                return Response({'error': 'پاسخ نباید بیشتر از ۲۰۰۰ کاراکتر باشد.'}, status=400)
+            
+            reply = ArticleComment.objects.create(
+                article=parent_comment.article,
+                name='پشتیبانی ارشیا نگین',
+                email='info@anpk.ir',
+                content=message,
+                parent=parent_comment,
+                status='APPROVED',
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            return Response({
+                'message': 'پاسخ با موفقیت ثبت شد.',
+                'id': reply.id,
+                'created_at': reply.created_at.strftime('%Y/%m/%d %H:%M')
+            }, status=201)
+        except ArticleComment.DoesNotExist:
+            return Response({'error': 'نظر مورد نظر یافت نشد.'}, status=404)
 
     elif request.method == 'PUT':
         comment_id = request.data.get('id')

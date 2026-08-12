@@ -36,6 +36,7 @@ class PublicPortfolioProject(models.Model):
     full_description = models.TextField(blank=True, null=True, verbose_name="شرح کامل معماری فنی و جزئیات استقرار")
     sprint_progress = models.IntegerField(default=100, verbose_name="درصد پیشرفت استقرار (۱۰۰٪ کامل)")
     demo_url = models.URLField(blank=True, null=True, verbose_name="آدرس لینک دمو یا وب‌سایت پروژه")
+    image_url = models.CharField(max_length=500, blank=True, default="", verbose_name="آدرس تصویر نمونه‌کار")
     is_featured = models.BooleanField(default=True, verbose_name="نمایش در نمونه‌کارهای ویژه صفحه اصلی")
     meta_title = models.CharField(max_length=70, blank=True, null=True, verbose_name="عنوان سئو (Meta Title)")
     meta_description = models.CharField(max_length=160, blank=True, null=True, verbose_name="توضیحات سئو (Meta Description)")

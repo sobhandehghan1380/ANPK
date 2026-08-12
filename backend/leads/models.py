@@ -7,6 +7,11 @@ class ProjectLead(models.Model):
         ('contract', 'تایید و عقد قرارداد'),
         ('archived', 'بایگانی'),
     )
+    PRIORITY_CHOICES = (
+        ('hot', 'داغ (فوری)'),
+        ('warm', 'گرم (احتمالی)'),
+        ('cold', 'سرد (بلندمدت)'),
+    )
 
     company_name = models.CharField(max_length=255, verbose_name="نام سازمان / بیمارستان")
     contact_person = models.CharField(max_length=255, verbose_name="نام و نام خانوادگی رابط")
@@ -17,6 +22,9 @@ class ProjectLead(models.Model):
     timeline = models.CharField(max_length=150, verbose_name="زمان‌بندی مد نظر")
     description = models.TextField(blank=True, null=True, verbose_name="توضیحات تکمیلی")
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='new', verbose_name="وضعیت پیگیری")
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='warm', verbose_name="اولویت")
+    source = models.CharField(max_length=100, blank=True, null=True, verbose_name="منبع لید")
+    assigned_to = models.CharField(max_length=100, blank=True, null=True, verbose_name="مسئول پیگیری")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت درخواست")
 
     def __str__(self):

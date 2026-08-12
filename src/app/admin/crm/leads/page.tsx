@@ -11,6 +11,7 @@ export default function AdminLeadsPage() {
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
   
   // Modals & Panels
   const [convertingLead, setConvertingLead] = useState<any>(null);
@@ -120,6 +121,12 @@ export default function AdminLeadsPage() {
     { id: 'archived', title: 'مشتری قطعی / بایگانی', color: 'border-emerald-500', bg: 'bg-emerald-500/10' },
   ];
 
+  const priorityConfig: Record<string, { label: string; color: string; bg: string }> = {
+    hot: { label: 'داغ', color: 'text-rose-500', bg: 'bg-rose-500/10' },
+    warm: { label: 'گرم', color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    cold: { label: 'سرد', color: 'text-sky-500', bg: 'bg-sky-500/10' },
+  };
+
   if (loading) return <div className="text-center mt-20"><div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div></div>;
 
   return (
@@ -132,15 +139,37 @@ export default function AdminLeadsPage() {
           </h2>
           <p className="text-xs text-slate-500">مدیریت گرافیکی سرنخ‌ها، ثبت لاگ تماس‌ها و جلسات مذاکره.</p>
         </div>
-        <div className="flex bg-white dark:bg-slate-900 border dark:border-slate-800 border-slate-200 rounded-xl overflow-hidden p-1 shadow-sm w-full sm:w-64">
-          <Search className="w-4 h-4 text-slate-400 mt-2 mr-2" />
-          <input 
-            type="text" 
-            placeholder="جستجوی نام یا تلفن..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full p-2 bg-transparent text-sm focus:outline-none dark:text-white"
-          />
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <div className="flex bg-white dark:bg-slate-900 border dark:border-slate-800 border-slate-200 rounded-xl overflow-hidden p-1 shadow-sm flex-1 sm:w-64">
+            <Search className="w-4 h-4 text-slate-400 mt-2 mr-2" />
+            <input 
+              type="text" 
+              placeholder="جستجوی نام یا تلفن..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full p-2 bg-transparent text-sm focus:outline-none dark:text-white"
+            />
+          </div>
+          <div className="flex gap-1">
+            {[
+              { id: 'all', label: 'همه' },
+              { id: 'hot', label: 'داغ' },
+              { id: 'warm', label: 'گرم' },
+              { id: 'cold', label: 'سرد' },
+            ].map(p => (
+              <button
+                key={p.id}
+                onClick={() => setPriorityFilter(p.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                  priorityFilter === p.id
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-white dark:bg-slate-900 text-slate-500 border dark:border-slate-800 border-slate-200'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -150,7 +179,12 @@ export default function AdminLeadsPage() {
       {/* Kanban Board */}
       <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar snap-x">
         {columns.map(col => {
-          const colLeads = leads.filter(l => l.status === col.id && (l.company.includes(searchQuery) || l.contact.includes(searchQuery)));
+          const colLeads = leads.filter(l => {
+            const matchesStatus = l.status === col.id;
+            const matchesSearch = l.company.includes(searchQuery) || l.contact.includes(searchQuery) || (l.phone && l.phone.includes(searchQuery));
+            const matchesPriority = priorityFilter === 'all' || l.priority === priorityFilter;
+            return matchesStatus && matchesSearch && matchesPriority;
+          });
           
           return (
             <div 
@@ -177,12 +211,19 @@ export default function AdminLeadsPage() {
                   >
                     <div className="flex justify-between items-start">
                       <div className="font-bold text-sm text-slate-900 dark:text-white">{lead.company}</div>
-                      {lead.activities?.length > 0 && (
-                        <div className="text-[10px] bg-indigo-500/10 text-indigo-500 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">
-                          <MessageSquare className="w-3 h-3" />
-                          {lead.activities.length}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {lead.priority && priorityConfig[lead.priority] && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${priorityConfig[lead.priority].bg} ${priorityConfig[lead.priority].color}`}>
+                            {priorityConfig[lead.priority].label}
+                          </span>
+                        )}
+                        {lead.activities?.length > 0 && (
+                          <div className="text-[10px] bg-indigo-500/10 text-indigo-500 px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">
+                            <MessageSquare className="w-3 h-3" />
+                            {lead.activities.length}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="text-xs text-slate-500 flex items-center gap-2">
