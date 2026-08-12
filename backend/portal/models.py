@@ -23,11 +23,22 @@ class ClientOrganization(models.Model):
     name = models.CharField(max_length=255, verbose_name="نام سازمان / بیمارستان")
     contact_person = models.CharField(max_length=150, verbose_name="نام رابط اصلی سازمان")
     phone = models.CharField(max_length=50, db_index=True, verbose_name="شماره تماس سازمان")
+    email = models.EmailField(blank=True, null=True, verbose_name="ایمیل سازمان")
+    address = models.TextField(blank=True, null=True, verbose_name="آدرس سازمان")
+    national_code = models.CharField(max_length=50, blank=True, null=True, verbose_name="کد اقتصادی / شناسه ملی")
+    website = models.URLField(blank=True, null=True, verbose_name="وب‌سایت سازمان")
+    description = models.TextField(blank=True, null=True, verbose_name="توضیحات / یادداشت")
+    logo_url = models.CharField(max_length=500, blank=True, default="", verbose_name="آدرس لوگوی سازمان")
+    tags = models.CharField(max_length=500, blank=True, default="", verbose_name="برچسب‌ها (با کاما جدا کنید)")
+    portal_access = models.BooleanField(default=True, verbose_name="دسترسی به پورتال")
     created_at = models.DateTimeField(default=timezone.now, verbose_name="تاریخ ثبت سازمان")
 
     def __str__(self):
         owner_info = f" - مالک: {self.owner_user.username}" if self.owner_user else ""
         return f"{self.name}{owner_info}"
+
+    def get_tags_list(self):
+        return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
 
     class Meta:
         verbose_name = "سازمان / مشتری"
@@ -76,8 +87,13 @@ class SLASupportContract(models.Model):
     @property
     def remaining_days(self):
         try:
-            from datetime import timedelta
-            end_date = self.start_date + timedelta(days=self.duration_months * 30)
+            import datetime
+            st_date = self.start_date
+            if isinstance(st_date, datetime.datetime):
+                st_date = st_date.date()
+            elif isinstance(st_date, str):
+                st_date = datetime.date.fromisoformat(st_date)
+            end_date = st_date + datetime.timedelta(days=int(self.duration_months or 12) * 30)
             today = timezone.now().date()
             delta = (end_date - today).days
             return max(0, delta)
@@ -196,9 +212,14 @@ class SMSLog(models.Model):
 # 6. Billing & Subscription Dedicated Models
 class PricingPlan(models.Model):
     name = models.CharField(max_length=150, verbose_name="نام پلن")
+    description = models.TextField(blank=True, null=True, verbose_name="توضیحات پلن")
     monthly_price = models.IntegerField(default=0, verbose_name="هزینه ماهانه (تومان)")
     yearly_price = models.IntegerField(default=0, verbose_name="هزینه سالانه (تومان)")
+    server_cost = models.IntegerField(default=0, verbose_name="هزینه سرور (تومان)")
+    support_cost = models.IntegerField(default=0, verbose_name="هزینه پشتیبانی (تومان)")
     features_list = models.TextField(blank=True, verbose_name="لیست ویژگی‌ها (با خط جدید جدا شود)")
+    trial_days = models.IntegerField(default=0, verbose_name="روزهای تست رایگان")
+    min_months = models.IntegerField(default=1, verbose_name="حداقل مدت (ماه)")
     is_active = models.BooleanField(default=True, verbose_name="پلن فعال است")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
 
@@ -210,16 +231,34 @@ class PricingPlan(models.Model):
         verbose_name_plural = "پلن‌های قیمت‌گذاری"
 
 class ClientSubscription(models.Model):
+    STATUS_CHOICES = (
+        ('trialing', 'در دوره تست'),
+        ('active', 'فعال'),
+        ('past_due', 'سررسید شده'),
+        ('canceled', 'لغو شده'),
+        ('expired', 'منقضی شده'),
+    )
     client = models.ForeignKey(ClientOrganization, on_delete=models.CASCADE, related_name="subscriptions", verbose_name="سازمان / مشتری")
-    plan = models.ForeignKey(PricingPlan, on_delete=models.SET_NULL, null=True, verbose_name="پلن انتخابی")
+    plan = models.ForeignKey(PricingPlan, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="پلن انتخابی")
+    is_custom_plan = models.BooleanField(default=False, verbose_name="پلن اختصاصی")
+    custom_plan_name = models.CharField(max_length=150, blank=True, null=True, verbose_name="نام پلن اختصاصی")
+    custom_monthly_price = models.IntegerField(default=0, verbose_name="قیمت ماهانه اختصاصی")
+    custom_yearly_price = models.IntegerField(default=0, verbose_name="قیمت سالانه اختصاصی")
+    custom_server_cost = models.IntegerField(default=0, verbose_name='هزینه سرور اختصاصی')
+    custom_support_cost = models.IntegerField(default=0, verbose_name='هزینه پشتیبانی اختصاصی')
+    custom_description = models.TextField(blank=True, null=True, verbose_name="توضیحات پلن اختصاصی")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='trialing', verbose_name="وضعیت اشتراک")
     start_date = models.DateField(default=timezone.now, verbose_name="تاریخ شروع")
     end_date = models.DateField(verbose_name="تاریخ سررسید / انقضا")
+    trial_end = models.DateField(blank=True, null=True, verbose_name="تاریخ پایان تست")
     auto_renew = models.BooleanField(default=False, verbose_name="تمدید خودکار")
-    is_active = models.BooleanField(default=True, verbose_name="اشتراک فعال است")
+    canceled_at = models.DateTimeField(blank=True, null=True, verbose_name="تاریخ لغو")
+    cancellation_reason = models.TextField(blank=True, null=True, verbose_name="دلیل لغو")
+    created_at = models.DateTimeField(default=timezone.now, verbose_name="تاریخ ثبت")
 
     def __str__(self):
-        plan_name = self.plan.name if self.plan else 'بدون پلن'
-    reference_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="کد پیگیری تراکنش / درگاه")
+        plan_name = self.plan.name if self.plan else (self.custom_plan_name or 'بدون پلن')
+        return f"اشتراک {self.client.name} - {plan_name}"
 
     class Meta:
         verbose_name = "اشتراک مشتری"

@@ -12,12 +12,12 @@ urlpatterns = [
     path('api/blog/articles/<slug:slug>/comments/', blog_views.article_comments, name='article_comments'),
     path('api/core/', include('core.urls')),
     path('api/catalog/', include('catalog.urls')),
-    path('api/portal/', include('portal.urls')),
     path('api/leads/', include('leads.urls')),
     path('api/projects/', include('projects.urls')),
     path('api/contact/', include('contact.urls')),
     path('api/blog/', include('blog.urls')),
     path('api/services/', include('services.urls')),
+    path('api/', include('portal.urls')),  # Must be last - includes admin/ and portal/ prefixes
 ]
 
 from django.conf import settings

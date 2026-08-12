@@ -4,7 +4,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
-from .models import ArticleCategory, Article, ArticleComment
+from .models import ArticleCategory, Article, ArticleComment, ArticleTag
+from django.utils import timezone
 import json
 
 RICH_CMMS_ARTICLE_CONTENT = """
@@ -83,12 +84,12 @@ RICH_HL7_ARTICLE_CONTENT = """
 
 @api_view(['GET'])
 def articles_list(request):
-    articles = Article.objects.filter(is_published=True).order_by('-created_at')
+    articles = Article.objects.filter(status='PUBLISHED').order_by('-created_at')
     if not articles.exists():
         cat_health, _ = ArticleCategory.objects.get_or_create(name='سلامت دیجیتال & FHIR', slug='digital-health')
         cat_cmms, _ = ArticleCategory.objects.get_or_create(name='نگهداشت تأسیسات & CMMS', slug='cmms')
 
-        Article.objects.create(
+        a1 = Article.objects.create(
             title='معماری پلتفرم‌های سلامت دیجیتال و استاندارد HL7 FHIR',
             slug='hl7-fhir-architecture',
             category=cat_health,
@@ -96,11 +97,14 @@ def articles_list(request):
             summary='بررسی نحوه تبادل امن داده‌های بالینی و پرونده الکترونیک سلامت بیمارستانی بر اساس آخرین پروتکل‌های HL7 FHIR با پایداری ۹۹.۹٪.',
             content=RICH_HL7_ARTICLE_CONTENT,
             read_time='۶ دقیقه',
-            tags='HL7 FHIR, سلامت دیجیتال, پایداری ۹۹.۹٪, پرونده سلامت',
-            image_url='/images/bg/health_tech.jpg',
+            status='PUBLISHED',
             views_count=520
         )
-        Article.objects.create(
+        t1, _ = ArticleTag.objects.get_or_create(name='HL7 FHIR', slug='hl7-fhir')
+        t2, _ = ArticleTag.objects.get_or_create(name='سلامت دیجیتال', slug='digital-health-tag')
+        a1.tags.set([t1, t2])
+
+        a2 = Article.objects.create(
             title='بهینه‌سازی و مانیتورینگ آنی تاسیسات بیمارستانی با CMMS',
             slug='cmms-facility-monitoring',
             category=cat_cmms,
@@ -108,11 +112,14 @@ def articles_list(request):
             summary='تحلیل راهکارهای نگهداشت پیشگیرانه (PM) و مانیتورینگ آنلاین چیلرها و موتورخانه بیمارستان با سنسورهای IoT.',
             content=RICH_CMMS_ARTICLE_CONTENT,
             read_time='۵ دقیقه',
-            tags='CMMS, مانیتورینگ IoT, تأسیسات بیمارستان, نگهداشت پیشگیرانه',
-            image_url='/images/bg/data_server.jpg',
+            status='PUBLISHED',
             views_count=410
         )
-        articles = Article.objects.filter(is_published=True).order_by('-created_at')
+        t3, _ = ArticleTag.objects.get_or_create(name='CMMS', slug='cmms-tag')
+        t4, _ = ArticleTag.objects.get_or_create(name='مانیتورینگ IoT', slug='iot-monitoring')
+        a2.tags.set([t3, t4])
+
+        articles = Article.objects.filter(status='PUBLISHED').order_by('-created_at')
 
     data = [{
         'id': a.id,
@@ -124,8 +131,10 @@ def articles_list(request):
         'summary': a.summary,
         'content': a.content,
         'read_time': a.read_time,
-        'tags': [tag.strip() for tag in a.tags.split(',') if tag.strip()],
-        'image_url': a.image_url,
+        'tags': [tag.name for tag in a.tags.all()],
+        'thumbnail': a.thumbnail.url if a.thumbnail else None,
+        'cover_image': a.cover_image.url if a.cover_image else None,
+        'image_url': a.cover_image.url if a.cover_image else (a.thumbnail.url if a.thumbnail else None),
         'views_count': a.views_count,
         'date': a.created_at.strftime('%Y/%m/%d')
     } for a in articles]
@@ -135,7 +144,7 @@ def articles_list(request):
 @api_view(['GET'])
 def article_detail(request, slug):
     try:
-        a = Article.objects.get(slug=slug, is_published=True)
+        a = Article.objects.get(slug=slug, status='PUBLISHED')
         
         # Increment views count dynamically
         a.views_count += 1
@@ -159,8 +168,10 @@ def article_detail(request, slug):
             'summary': a.summary,
             'content': a.content,
             'read_time': a.read_time,
-            'tags': [tag.strip() for tag in a.tags.split(',') if tag.strip()],
-            'image_url': a.image_url,
+            'tags': [tag.name for tag in a.tags.all()],
+            'thumbnail': a.thumbnail.url if a.thumbnail else None,
+            'cover_image': a.cover_image.url if a.cover_image else None,
+            'image_url': a.cover_image.url if a.cover_image else (a.thumbnail.url if a.thumbnail else None),
             'views_count': a.views_count,
             'date': a.created_at.strftime('%Y/%m/%d')
         }
@@ -234,9 +245,11 @@ def admin_comments(request):
     """
     Admin API for managing all comments
     GET - list all comments with filter ?status=PENDING|APPROVED|REJECTED
+    POST - reply to a comment: {ticket_id: id, message: text}
     PUT - approve/reject a comment: {id, status}
     DELETE - delete a comment: {id} or ?id=
     """
+    from blog.models import Article, ArticleComment
     if request.method == 'GET':
         status_filter = request.query_params.get('status')
         qs = ArticleComment.objects.select_related('article', 'parent').order_by('-created_at')
@@ -256,6 +269,36 @@ def admin_comments(request):
         } for c in qs]
         pending_count = ArticleComment.objects.filter(status='PENDING').count()
         return Response({'comments': data, 'pending_count': pending_count})
+
+    elif request.method == 'POST':
+        # Reply to comment
+        comment_id = request.data.get('comment_id')
+        message = request.data.get('message', '').strip()
+        if not comment_id or not message:
+            return Response({'error': 'شناسه نظر و متن پاسخ الزامی است.'}, status=400)
+        try:
+            parent_comment = ArticleComment.objects.get(id=comment_id)
+            if len(message) < 5:
+                return Response({'error': 'پاسخ باید حداقل ۵ کاراکتر باشد.'}, status=400)
+            if len(message) > 2000:
+                return Response({'error': 'پاسخ نباید بیشتر از ۲۰۰۰ کاراکتر باشد.'}, status=400)
+            
+            reply = ArticleComment.objects.create(
+                article=parent_comment.article,
+                name='پشتیبانی ارشیا نگین',
+                email='info@anpk.ir',
+                content=message,
+                parent=parent_comment,
+                status='APPROVED',
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            return Response({
+                'message': 'پاسخ با موفقیت ثبت شد.',
+                'id': reply.id,
+                'created_at': reply.created_at.strftime('%Y/%m/%d %H:%M')
+            }, status=201)
+        except ArticleComment.DoesNotExist:
+            return Response({'error': 'نظر مورد نظر یافت نشد.'}, status=404)
 
     elif request.method == 'PUT':
         comment_id = request.data.get('id')

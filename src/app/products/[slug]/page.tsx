@@ -34,7 +34,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
   if (!product) notFound();
 
   const allProducts = await getProducts(true);
-  const relatedProducts = allProducts.filter((p) => p.slug !== product.slug && p.isPublic);
+  const relatedProducts = allProducts.filter((p: any) => p.slug !== product.slug && p.isPublic);
 
   const isAira = product.slug === 'aira';
 
@@ -43,7 +43,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
     'tasisat-negar': '/images/bg/prod_tasisat.jpg',
     nikilink: '/images/bg/prod_nikilink.jpg',
   };
-  const logoImg = productImages[product.slug] || '/images/bg/prod_aira.jpg';
+  const logoImg = product.image_url || productImages[product.slug] || '/images/bg/prod_aira.jpg';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16 overflow-x-hidden">
@@ -233,7 +233,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
         <section className="space-y-6 pt-6 border-t border-slate-800">
           <h3 className="text-xl font-bold text-white">محصولات مرتبط</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {relatedProducts.map((rel) => (
+            {relatedProducts.map((rel: any) => (
               <Link
                 key={rel.id}
                 href={`/products/${rel.slug}`}

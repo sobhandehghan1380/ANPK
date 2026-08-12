@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils import timezone
 from portal.models import (
     ClientOrganization, Wallet, WalletTransaction, SLASupportContract,
     SupportTicket, APIKey, SMSLog, SMSOTPCode
@@ -72,6 +73,227 @@ def admin_article_categories(request):
     } for c in categories]
     return Response(data)
 
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([IsAdminUser])
+def admin_article_tags(request):
+    """
+    Admin Article Tags Management API
+    GET - list all tags with article count
+    POST - create a new tag: {name, slug}
+    PUT - update a tag: {id, name, slug}
+    DELETE - delete a tag: {id} or ?id=
+    """
+    from blog.models import ArticleTag, Article
+    if request.method == 'POST':
+        name = request.data.get('name', '').strip()
+        slug = request.data.get('slug', '').strip()
+        if not name:
+            return Response({'error': 'نام برچسب الزامی است.'}, status=400)
+        if not slug:
+            slug = name.replace(' ', '-').lower()
+        
+        tag, created = ArticleTag.objects.get_or_create(
+            slug=slug,
+            defaults={'name': name}
+        )
+        if not created:
+            return Response({'error': 'برچسب با این نامک قبلاً وجود دارد.'}, status=400)
+        
+        return Response({'message': f'برچسب "{name}" با موفقیت ایجاد شد.', 'id': tag.id}, status=201)
+
+    elif request.method == 'PUT':
+        tag_id = request.data.get('id') or request.data.get('item_id')
+        try:
+            tag = ArticleTag.objects.get(id=tag_id)
+            if 'name' in request.data:
+                tag.name = request.data['name'].strip()
+            if 'slug' in request.data:
+                tag.slug = request.data['slug'].strip()
+            tag.save()
+            return Response({'message': f'برچسب "{tag.name}" با موفقیت ویرایش شد.'})
+        except ArticleTag.DoesNotExist:
+            return Response({'error': 'برچسب یافت نشد.'}, status=404)
+
+    elif request.method == 'DELETE':
+        tag_id = request.data.get('id') or request.data.get('item_id') or request.query_params.get('id')
+        try:
+            tag = ArticleTag.objects.get(id=tag_id)
+            tag.delete()
+            return Response({'message': 'برچسب حذف شد.'})
+        except ArticleTag.DoesNotExist:
+            return Response({'error': 'برچسب یافت نشد.'}, status=404)
+
+    # GET - list all tags
+    tags = ArticleTag.objects.all().order_by('-id')
+    data = [{
+        'id': t.id,
+        'name': t.name,
+        'slug': t.slug,
+        'articles_count': t.articles.count()
+    } for t in tags]
+    return Response(data)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAdminUser])
+def admin_scheduled_publish(request):
+    """
+    Scheduled Publishing API
+    GET - list scheduled articles (published_at in future)
+    POST - manually trigger publishing of due articles: {action: 'publish_now'}
+    """
+    from blog.models import Article
+    
+    if request.method == 'POST':
+        action = request.data.get('action')
+        if action == 'publish_now':
+            now = timezone.now()
+            scheduled = Article.objects.filter(
+                status='DRAFT',
+                published_at__isnull=False,
+                published_at__lte=now
+            )
+            count = 0
+            for article in scheduled:
+                article.status = 'PUBLISHED'
+                article.save()
+                count += 1
+            return Response({'message': f'{count} مقاله با موفقیت منتشر شد.'})
+        return Response({'error': 'عملیات نامعتبر.'}, status=400)
+    
+    # GET - list scheduled articles
+    now = timezone.now()
+    scheduled = Article.objects.filter(
+        status='DRAFT',
+        published_at__isnull=False,
+        published_at__gt=now
+    ).order_by('published_at')
+    
+    due = Article.objects.filter(
+        status='DRAFT',
+        published_at__isnull=False,
+        published_at__lte=now
+    ).count()
+    
+    data = [{
+        'id': a.id,
+        'title': a.title,
+        'slug': a.slug,
+        'published_at': a.published_at.strftime('%Y-%m-%d %H:%M') if a.published_at else None,
+        'created_at': a.created_at.strftime('%Y/%m/%d')
+    } for a in scheduled]
+    
+    return Response({
+        'scheduled': data,
+        'due_count': due,
+        'total_scheduled': len(data)
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def admin_blog_analytics(request):
+    """
+    Blog Analytics Dashboard API
+    Returns comprehensive statistics for the blog section
+    """
+    from blog.models import Article, ArticleCategory, ArticleTag, ArticleComment
+    from django.db.models import Count, Sum, Avg, Q
+    from django.utils import timezone
+    from datetime import timedelta
+
+    # Article statistics
+    total_articles = Article.objects.count()
+    published_articles = Article.objects.filter(status='PUBLISHED').count()
+    draft_articles = Article.objects.filter(status='DRAFT').count()
+    archived_articles = Article.objects.filter(status='ARCHIVED').count()
+    featured_articles = Article.objects.filter(is_featured=True).count()
+    total_views = Article.objects.aggregate(total=Sum('views_count'))['total'] or 0
+    avg_views = Article.objects.aggregate(avg=Avg('views_count'))['avg'] or 0
+
+    # Comments statistics
+    total_comments = ArticleComment.objects.count()
+    pending_comments = ArticleComment.objects.filter(status='PENDING').count()
+    approved_comments = ArticleComment.objects.filter(status='APPROVED').count()
+    rejected_comments = ArticleComment.objects.filter(status='REJECTED').count()
+
+    # Categories & Tags
+    total_categories = ArticleCategory.objects.count()
+    total_tags = ArticleTag.objects.count()
+
+    # Top viewed articles
+    top_articles = Article.objects.filter(status='PUBLISHED').order_by('-views_count')[:5]
+    top_articles_data = [{
+        'id': a.id,
+        'title': a.title,
+        'slug': a.slug,
+        'views_count': a.views_count,
+        'category': a.category.name if a.category else 'عمومی'
+    } for a in top_articles]
+
+    # Top categories by article count
+    top_categories = ArticleCategory.objects.annotate(
+        article_count=Count('articles')
+    ).order_by('-article_count')[:5]
+    top_categories_data = [{
+        'id': c.id,
+        'name': c.name,
+        'slug': c.slug,
+        'article_count': c.article_count
+    } for c in top_categories]
+
+    # Recent comments
+    recent_comments = ArticleComment.objects.select_related('article').order_by('-created_at')[:5]
+    recent_comments_data = [{
+        'id': c.id,
+        'name': c.name,
+        'article_title': c.article.title,
+        'content': c.content[:100],
+        'status': c.status,
+        'created_at': c.created_at.strftime('%Y/%m/%d %H:%M')
+    } for c in recent_comments]
+
+    # Views trend (last 7 days)
+    now = timezone.now()
+    views_trend = []
+    for i in range(6, -1, -1):
+        date = now - timedelta(days=i)
+        day_views = Article.objects.filter(
+            created_at__date=date.date()
+        ).aggregate(total=Sum('views_count'))['total'] or 0
+        views_trend.append({
+            'date': date.strftime('%Y/%m/%d'),
+            'views': day_views
+        })
+
+    data = {
+        'articles': {
+            'total': total_articles,
+            'published': published_articles,
+            'draft': draft_articles,
+            'archived': archived_articles,
+            'featured': featured_articles,
+            'total_views': total_views,
+            'avg_views': round(avg_views, 1)
+        },
+        'comments': {
+            'total': total_comments,
+            'pending': pending_comments,
+            'approved': approved_comments,
+            'rejected': rejected_comments
+        },
+        'taxonomy': {
+            'categories': total_categories,
+            'tags': total_tags
+        },
+        'top_articles': top_articles_data,
+        'top_categories': top_categories_data,
+        'recent_comments': recent_comments_data,
+        'views_trend': views_trend
+    }
+    return Response(data)
+
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 @permission_classes([IsAdminUser])
 def admin_articles(request):
@@ -126,8 +348,11 @@ def admin_articles(request):
             published_at=published_at,
         )
         if request.FILES.get('thumbnail'): article.thumbnail = request.FILES['thumbnail']
+        elif request.data.get('thumbnail'): article.thumbnail = request.data['thumbnail']
         if request.FILES.get('cover_image'): article.cover_image = request.FILES['cover_image']
+        elif request.data.get('cover_image'): article.cover_image = request.data['cover_image']
         if request.FILES.get('og_image'): article.og_image = request.FILES['og_image']
+        elif request.data.get('og_image'): article.og_image = request.data['og_image']
         article.save()
         handle_tags(article, tags_str)
         return Response({'message': f'مقاله "{title}" ایجاد گردید.', 'id': article.id})
@@ -156,8 +381,11 @@ def admin_articles(request):
             if 'published_at' in request.data and request.data['published_at']:
                 a.published_at = request.data['published_at']
             if 'thumbnail' in request.FILES: a.thumbnail = request.FILES['thumbnail']
+            elif 'thumbnail' in request.data: a.thumbnail = request.data['thumbnail'] or None
             if 'cover_image' in request.FILES: a.cover_image = request.FILES['cover_image']
+            elif 'cover_image' in request.data: a.cover_image = request.data['cover_image'] or None
             if 'og_image' in request.FILES: a.og_image = request.FILES['og_image']
+            elif 'og_image' in request.data: a.og_image = request.data['og_image'] or None
             a.save()
             if 'tags' in request.data: handle_tags(a, request.data['tags'])
             return Response({'message': 'مقاله با موفقیت ویرایش شد.'})

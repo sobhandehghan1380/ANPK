@@ -42,9 +42,13 @@ def admin_token_obtain(request):
         logger.warning(f'[ADMIN_AUTH] Failed login attempt for username: {username}')
         return Response({'error': 'نام کاربری یا رمز عبور اشتباه است.'}, status=401)
 
-    if not user.is_staff:
+    if not (user.is_staff or user.is_superuser):
         logger.warning(f'[ADMIN_AUTH] Non-staff user attempted admin login: {username}')
-        return Response({'error': 'شما دسترسی ادمین ندارید.'}, status=403)
+        return Response({'error': 'شما دسترسی ادمین ندارید. کاربر باید دارای دسترسی ادمین (is_staff یا is_superuser) باشد.'}, status=403)
+
+    if not user.is_active:
+        logger.warning(f'[ADMIN_AUTH] Inactive user attempted login: {username}')
+        return Response({'error': 'حساب کاربری شما غیرفعال است.'}, status=403)
 
     refresh = RefreshToken.for_user(user)
     logger.info(f'[ADMIN_AUTH] Successful admin login: {username}')

@@ -114,6 +114,12 @@ def admin_analytics(request):
         'progress': p.progress_percentage
     } for p in projects]
 
+    return Response({
+        'revenue_chart': revenue_chart,
+        'ai_trend': ai_trend,
+        'projects_breakdown': projects_breakdown,
+    })
+
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
 def admin_delete_item(request):

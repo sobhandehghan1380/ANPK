@@ -67,7 +67,7 @@ def admin_sms_logs(request):
         )
         return Response({'message': f'پیامک با موفقیت به شماره {recipient} ارسال شد.', 'id': sms_log.id})
 
-    logs = SMSLog.objects.select_related('project', 'project__client').all().order_by('-created_at')
+    logs = SMSLog.objects.select_related('project', 'project__client').all().order_by('-sent_at')
     data = [{
         'id': s.id,
         'recipient': s.recipient,
@@ -76,7 +76,7 @@ def admin_sms_logs(request):
         'cost': s.cost,
         'project_title': s.project.title if s.project else 'پیامک سازمانی / اطلاع‌رسانی',
         'client_name': s.project.client.name if (s.project and s.project.client) else 'سیستم متمرکز',
-        'sent_at': s.created_at.strftime('%Y/%m/%d - %H:%M')
+        'sent_at': s.sent_at.strftime('%Y/%m/%d - %H:%M') if s.sent_at else ''
     } for s in logs]
     return Response(data)
 

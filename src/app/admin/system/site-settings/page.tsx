@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { adminFetch } from '@/lib/api';
 import { Settings, ShieldCheck, CheckCircle2, Type, Building2, PanelTop, Trash2, PlusCircle } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api/portal';
+const API_BASE = 'http://127.0.0.1:8000/api/admin';
 
 export default function AdminSiteSettingsPage() {
   const [activeTab, setActiveTab] = useState<'company' | 'hero' | 'typewriter'>('company');
