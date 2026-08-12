@@ -10,8 +10,6 @@ admin.site.index_title = "داشبورد مدیریت ارشد ANPK"
 
 urlpatterns = [
     # Django Admin
-    path('admin/', admin.site.urls),
-    
     # ============================================
     # ADMIN API - دسترسی فقط با JWT ادمین
     # ============================================
