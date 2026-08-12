@@ -151,12 +151,13 @@ export default function ProjectBoardPage() {
                 <h4 className="font-bold text-slate-700 dark:text-slate-300">فازهای اجرایی (Sprints)</h4>
                 
                 {selectedProject.phases?.map((phase: any, idx: number) => {
-                  const overdue = isOverdue(phase.target_delivery_date, phase.progress_percentage || phase.progress);
+                  const phaseProg = phase.progress_percentage ?? phase.progress ?? 0;
+                  const overdue = isOverdue(phase.target_delivery_date, phaseProg);
                   return (
                   <div key={idx} className={`border ${overdue ? 'border-rose-500/50 dark:border-rose-500/50 bg-rose-50/30 dark:bg-rose-900/10' : 'dark:border-slate-800 border-slate-200 bg-slate-50 dark:bg-slate-900/50'} rounded-2xl p-5`}>
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
-                        {progress === 100 ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <CircleDashed className={`w-6 h-6 ${overdue ? 'text-rose-500 animate-pulse' : 'text-brand-500'}`} />}
+                        {phaseProg === 100 ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <CircleDashed className={`w-6 h-6 ${overdue ? 'text-rose-500 animate-pulse' : 'text-brand-500'}`} />}
                         <div>
                           <div className="font-bold text-sm dark:text-white flex items-center gap-2">
                             {phase.title}
@@ -185,10 +186,10 @@ export default function ProjectBoardPage() {
                       <div className="flex-1 space-y-1">
                         <div className="flex justify-between text-[10px] font-bold">
                           <span className="text-slate-500">درصد پیشرفت</span>
-                          <span className={progress === 100 ? "text-emerald-500" : (overdue ? "text-rose-500" : "text-brand-500")}>{progress}%</span>
+                          <span className={phaseProg === 100 ? "text-emerald-500" : (overdue ? "text-rose-500" : "text-brand-500")}>{phaseProg}%</span>
                         </div>
                         <input 
-                          type="range" min="0" max="100" step="5" value={progress}
+                          type="range" min="0" max="100" step="5" value={phaseProg}
                           onChange={(e) => handleUpdatePhase(phase.id, { progress: parseInt(e.target.value), status: parseInt(e.target.value) === 100 ? 'COMPLETED' : 'IN_PROGRESS' })}
                           className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer ${overdue ? 'accent-rose-500' : 'accent-brand-500'}`}
                         />
@@ -196,7 +197,7 @@ export default function ProjectBoardPage() {
                       
                       <select 
                         value={phase.status} 
-                        onChange={(e) => handleUpdatePhase(phase.id, { progress: progress, status: e.target.value })}
+                        onChange={(e) => handleUpdatePhase(phase.id, { progress: phaseProg, status: e.target.value })}
                         className="text-xs p-2 rounded-xl border dark:border-slate-700 border-slate-300 bg-white dark:bg-slate-800 focus:outline-none"
                       >
                         <option value="PENDING">در انتظار</option>

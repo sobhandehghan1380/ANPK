@@ -24,9 +24,9 @@ export default async function TagArticlesPage({ params }: Props) {
   const articles = await getArticles();
   
   // Filter articles by tag slug
-  const tagArticles = articles.filter(a => {
+  const tagArticles = articles.filter((a: any) => {
     if (!a.tags || !Array.isArray(a.tags)) return false;
-    return a.tags.some(t => {
+    return a.tags.some((t: string) => {
       const tagSlug = t.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       return tagSlug === params.slug || t.toLowerCase() === params.slug.replace(/-/g, ' ');
     });
@@ -36,7 +36,7 @@ export default async function TagArticlesPage({ params }: Props) {
     notFound();
   }
 
-  const tagName = tagArticles[0]?.tags?.find(t => {
+  const tagName = tagArticles[0]?.tags?.find((t: string) => {
     const tagSlug = t.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     return tagSlug === params.slug || t.toLowerCase() === params.slug.replace(/-/g, ' ');
   }) || params.slug.replace(/-/g, ' ');

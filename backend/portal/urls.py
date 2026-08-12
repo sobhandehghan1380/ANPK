@@ -82,15 +82,4 @@ urlpatterns = [
     path('portal/client/tickets/', views.tickets_list, name='tickets_list'),
     path('portal/client/tickets/reply/', views.reply_ticket, name='reply_ticket'),
     path('portal/client/notifications/', views.notifications_list, name='notifications_list'),
-    
-    # ============================================
-    # PUBLIC API - بدون نیاز به احراز هویت
-    # ============================================
-    path('blog/', include('blog.urls')),
-    path('core/', include('core.urls')),
-    path('catalog/', include('catalog.urls')),
-    path('leads/', include('leads.urls')),
-    path('projects/', include('projects.urls')),
-    path('contact/', include('contact.urls')),
-    path('services/', include('services.urls')),
 ]

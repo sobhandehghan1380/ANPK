@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
@@ -21,23 +22,38 @@ def admin_pricing_plans(request):
 
         plan_id = request.data.get('id')
         name = request.data.get('name')
+        description = request.data.get('description', '')
         monthly_price = int(request.data.get('monthly_price', 0))
         yearly_price = int(request.data.get('yearly_price', 0))
+        server_cost = int(request.data.get('server_cost', 0))
+        support_cost = int(request.data.get('support_cost', 0))
+        trial_days = int(request.data.get('trial_days', 0))
+        min_months = int(request.data.get('min_months', 1))
         features_list = request.data.get('features_list', '')
 
         if plan_id:
             plan = PricingPlan.objects.get(id=plan_id)
             plan.name = name
+            plan.description = description
             plan.monthly_price = monthly_price
             plan.yearly_price = yearly_price
+            plan.server_cost = server_cost
+            plan.support_cost = support_cost
+            plan.trial_days = trial_days
+            plan.min_months = min_months
             plan.features_list = features_list
             plan.save()
             return Response({'message': 'پلن قیمتی بروزرسانی شد.'})
         else:
             PricingPlan.objects.create(
                 name=name,
+                description=description,
                 monthly_price=monthly_price,
                 yearly_price=yearly_price,
+                server_cost=server_cost,
+                support_cost=support_cost,
+                trial_days=trial_days,
+                min_months=min_months,
                 features_list=features_list
             )
             return Response({'message': 'پلن جدید با موفقیت اضافه شد.'})
@@ -50,8 +66,13 @@ def admin_pricing_plans(request):
     data = [{
         'id': p.id,
         'name': p.name,
+        'description': p.description,
         'monthly_price': p.monthly_price,
         'yearly_price': p.yearly_price,
+        'server_cost': p.server_cost,
+        'support_cost': p.support_cost,
+        'trial_days': p.trial_days,
+        'min_months': p.min_months,
         'features_list': p.features_list,
         'is_active': p.is_active,
     } for p in plans]
@@ -188,7 +209,7 @@ def admin_subscriptions(request):
         'support_cost': p.support_cost,
         'trial_days': p.trial_days,
         'min_months': p.min_months,
-    } for p in PricingPlan.objects.filter(status='active')]
+    } for p in PricingPlan.objects.filter(is_active=True)]
     
     return Response({'subscriptions': data, 'clients': clients, 'plans': plans})
 

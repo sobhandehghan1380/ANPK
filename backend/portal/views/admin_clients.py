@@ -209,23 +209,41 @@ def admin_tickets(request):
     if request.method == 'POST':
         ticket_id = request.data.get('ticket_id')
         new_status = request.data.get('status', 'پاسخ داده شده')
+        reply_message = request.data.get('reply', '')
         
         try:
-            ticket = SupportTicket, TicketReply.objects.get(id=ticket_id)
+            ticket = SupportTicket.objects.get(id=ticket_id)
             ticket.status = new_status
             ticket.save()
+            
+            if reply_message:
+                TicketReply.objects.create(
+                    ticket=ticket,
+                    sender_name='پشتیبانی ارشیا نگین',
+                    is_admin=True,
+                    message=reply_message
+                )
+            
             return Response({'message': f'وضعیت تیکت #{ticket.id} به "{new_status}" تغییر یافت.'})
-        except (SupportTicket.DoesNotExist, TicketReply.DoesNotExist):
+        except SupportTicket.DoesNotExist:
             return Response({'error': 'تیکت یافت نشد.'}, status=400)
 
-    tickets = SupportTicket, TicketReply.objects.all().order_by('-created_at')
+    tickets = SupportTicket.objects.select_related('client').prefetch_related('replies').all().order_by('-created_at')
     data = [{
         'id': t.id,
-        'client_name': t.client_name,
+        'client_name': t.client_name or (t.client.name if t.client else 'کاربر ناشناس'),
+        'client_id': t.client.id if t.client else None,
         'subject': t.subject,
         'message': t.message,
         'status': t.status,
-        'created_at': t.created_at.strftime('%Y/%m/%d - %H:%M')
+        'created_at': t.created_at.strftime('%Y/%m/%d - %H:%M'),
+        'replies': [{
+            'id': r.id,
+            'sender_name': r.sender_name,
+            'is_admin': r.is_admin,
+            'message': r.message,
+            'created_at': r.created_at.strftime('%Y/%m/%d - %H:%M')
+        } for r in t.replies.all()]
     } for t in tickets]
     return Response(data)
 

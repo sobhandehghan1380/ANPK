@@ -27,19 +27,15 @@ export function getAdminHeaders(): HeadersInit {
 }
 
 export async function adminFetch(url: string, options: RequestInit = {}): Promise<any> {
-  const headers = getAdminHeaders();
-  
+  const headers = getAdminHeaders() as Record<string, string>;
+  const reqHeaders: Record<string, string> = { ...headers, ...((options.headers as Record<string, string>) || {}) };
+
   // If sending FormData, do not force Content-Type to application/json
   // Let the browser automatically set it to multipart/form-data with boundary
   if (options.body instanceof FormData) {
-    const { 'Content-Type': _, ...restHeaders } = headers as any;
-    options.headers = { ...restHeaders, ...(options.headers || {}) };
-    if ('Content-Type' in options.headers && (options.headers as any)['Content-Type'] === 'application/json') {
-       delete (options.headers as any)['Content-Type'];
-    }
-  } else {
-    options.headers = { ...headers, ...(options.headers || {}) };
+    delete reqHeaders['Content-Type'];
   }
+  options.headers = reqHeaders;
 
   const res = await fetch(url, options);
 
@@ -176,9 +172,7 @@ export async function fetchArticleBySlug(slug: string) {
 
 export async function getAdminOverview() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/overview/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/overview/`, { cache: 'no-store' });
   } catch (error) {
     return null;
   }
@@ -186,9 +180,7 @@ export async function getAdminOverview() {
 
 export async function getAdminWallets() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/wallets/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/wallets/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -208,9 +200,7 @@ export async function topUpClientWallet(clientId: number, amount: number, descri
 
 export async function getAdminTickets() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/tickets/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/tickets/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -218,13 +208,10 @@ export async function getAdminTickets() {
 
 export async function updateTicketStatus(ticketId: number, status: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/tickets/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/tickets/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticket_id: ticketId, status })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -232,9 +219,7 @@ export async function updateTicketStatus(ticketId: number, status: string) {
 
 export async function getAdminProjects() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/projects/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/projects/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -242,13 +227,10 @@ export async function getAdminProjects() {
 
 export async function createAdminProject(clientId: number, title: string, contractNumber: string, phase: string, progress: number) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/projects/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/projects/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_id: clientId, title, contract_number: contractNumber, current_phase: phase, progress_percentage: progress })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -256,9 +238,7 @@ export async function createAdminProject(clientId: number, title: string, contra
 
 export async function getAdminAILogs() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/ai-logs/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/ai-logs/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -266,9 +246,7 @@ export async function getAdminAILogs() {
 
 export async function getAdminSMSLogs() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/sms-logs/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/sms-logs/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -286,7 +264,6 @@ export async function createAdminClient(name: string, contactPerson: string, pho
   try {
     return await adminFetch(`${API_BASE_URL}/api/admin/clients/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, contact_person: contactPerson, phone, user_id: userId })
     });
   } catch (error) {
@@ -296,9 +273,7 @@ export async function createAdminClient(name: string, contactPerson: string, pho
 
 export async function getAdminNodes() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/nodes/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/nodes/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -306,13 +281,10 @@ export async function getAdminNodes() {
 
 export async function createAdminNode(name: string, statusLabel: string, uptime: string, latency: number) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/nodes/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/nodes/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, status_label: statusLabel, uptime, latency })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -320,9 +292,7 @@ export async function createAdminNode(name: string, statusLabel: string, uptime:
 
 export async function getAdminArticleCategories() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/article-categories/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/article-categories/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -330,13 +300,10 @@ export async function getAdminArticleCategories() {
 
 export async function createAdminArticleCategory(name: string, slug: string, description: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/article-categories/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/article-categories/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, slug, description })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -344,9 +311,7 @@ export async function createAdminArticleCategory(name: string, slug: string, des
 
 export async function getAdminArticles() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/articles/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/articles/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -354,13 +319,10 @@ export async function getAdminArticles() {
 
 export async function createAdminArticle(title: string, slug: string, summary: string, content: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/articles/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/articles/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, slug, summary, content })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -368,9 +330,7 @@ export async function createAdminArticle(title: string, slug: string, summary: s
 
 export async function getAdminProductsList() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/products/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/products/`, { cache: 'no-store' });
   } catch (error) {
     return [];
   }
@@ -378,13 +338,10 @@ export async function getAdminProductsList() {
 
 export async function createAdminProduct(name: string, slug: string, shortDescription: string, demoUrl: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/products/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/products/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, slug, short_description: shortDescription, demo_url: demoUrl })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -392,9 +349,7 @@ export async function createAdminProduct(name: string, slug: string, shortDescri
 
 export async function getAdminServicesConfig() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/services-config/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/services-config/`, { cache: 'no-store' });
   } catch (error) {
     return null;
   }
@@ -402,13 +357,10 @@ export async function getAdminServicesConfig() {
 
 export async function updateAdminServicesConfig(defaultModel: string, rate: number, senderLine: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/services-config/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/services-config/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ default_model: defaultModel, wallet_rate_per_query: rate, sender_line: senderLine })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -436,9 +388,7 @@ export async function deleteAdminUser(userId: number) {
 
 export async function getAdminAnalytics() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/analytics/`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
+    return await adminFetch(`${API_BASE_URL}/api/admin/analytics/`, { cache: 'no-store' });
   } catch (error) {
     return null;
   }
@@ -671,13 +621,10 @@ export async function createTicket(ticketData: { client_name?: string; subject: 
 
 export async function generateProjectAPIKey(projectId: number, keyName: string) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/projects/`, {
+    return await adminFetch(`${API_BASE_URL}/api/admin/projects/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'generate_key', project_id: projectId, key_name: keyName })
     });
-    if (!res.ok) throw new Error('Network error');
-    return await res.json();
   } catch (error) {
     return null;
   }
@@ -791,4 +738,26 @@ export async function replyTicket(ticketId: number, message: string) {
 }
 export async function adminReplyTicket(ticketId: number, message: string) {
   try { return await adminFetch(`${API_BASE_URL}/api/admin/tickets/reply/`, { method: 'POST', body: JSON.stringify({ ticket_id: ticketId, message }) }); } catch(e) { return null; }
+}
+
+export async function updateAdminItem(model: string, id: number, data: any) {
+  try {
+    return await adminFetch(`${API_BASE_URL}/api/admin/update-item/`, {
+      method: 'POST',
+      body: JSON.stringify({ model, id, ...data })
+    });
+  } catch (error) {
+    return null;
+  }
+}
+
+export async function deleteAdminItem(model: string, id: number) {
+  try {
+    return await adminFetch(`${API_BASE_URL}/api/admin/delete-item/`, {
+      method: 'POST',
+      body: JSON.stringify({ model, id })
+    });
+  } catch (error) {
+    return null;
+  }
 }

@@ -21,7 +21,7 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
   if (!project) notFound();
 
   const allProjects = await getProjects();
-  const relatedProjects = allProjects.filter((p) => p.slug !== project.slug).slice(0, 2);
+  const relatedProjects = allProjects.filter((p: any) => p.slug !== project.slug).slice(0, 2);
 
   const projectImages: Record<string, string> = {
     'cmms-hospital': '/images/bg/proj_his.jpg',
@@ -139,7 +139,7 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
         <div className="space-y-6 pt-6 border-t dark:border-slate-800 border-slate-200">
           <h3 className="text-xl font-black dark:text-white text-slate-900">پروژه‌های مشابه و مرتبط</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {relatedProjects.map((rel) => {
+            {relatedProjects.map((rel: any) => {
               const relImg = projectImages[rel.slug] || '/images/bg/proj_his.jpg';
 
               return (

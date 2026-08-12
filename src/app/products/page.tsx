@@ -41,7 +41,7 @@ export default async function ProductsListPage() {
 
       {/* Products Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {products.map((prod, idx) => {
+        {products.map((prod: any, idx: number) => {
           const logoImg = prod.image_url || productImages[prod.slug] || '/images/bg/prod_aira.jpg';
 
           return (

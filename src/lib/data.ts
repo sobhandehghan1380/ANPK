@@ -94,21 +94,27 @@ export async function getProjects() {
       id: p.id,
       slug: p.slug || `project-${p.id}`,
       title: p.title,
-      clientName: p.client_display || p.client_name_display || p.organization || 'دانشگاه‌ها و سازمان‌های بزرگ کشور',
-      domain: p.category || 'پلتفرم سازمانی',
+      clientName: p.client_display || p.client_name_display || p.organization || (p.client ? p.client.name : 'سازمان'),
+      domain: p.category || (p.category_name ? p.category_name : 'پلتفرم سازمانی'),
       summary: p.summary || p.description || 'توسعه و استقرار پلتفرم اختصاصی سازمانی با پایداری ۹۹.۹٪.',
       fullDescription: p.full_description || '',
       metaTitle: p.meta_title || '',
       metaDescription: p.meta_description || '',
-      results: p.features || ['استقرار میکروسرویس‌های بومی', 'کاهش ۳۵٪ توقف‌های کاری', 'پشتیبانی ۲۴/۷ SLA'],
-      progress: p.progress || 100,
-      activePhase: p.active_phase || p.phase || 'در حال بهره‌برداری',
+      results: Array.isArray(p.results) ? p.results : ['استقرار میکروسرویس‌های بومی', 'کاهش ۳۵٪ توقف‌های کاری', 'پشتیبانی ۲۴/۷ SLA'],
+      features: Array.isArray(p.features) ? p.features : ['معماری ابری و ماژولار', 'امنیت داده‌ها و ایزوله‌سازی دسترسی', 'پشتیبانی SLA ۲۴/۷'],
+      progress: p.progress || p.sprint_progress || 100,
+      activePhase: p.active_phase || p.phase || p.active_phase_title || 'در حال بهره‌برداری',
       status: 'در حال بهره‌برداری'
     }));
   } catch (error) {
     console.error('Error fetching projects from Django:', error);
     return [];
   }
+}
+
+export async function getProjectBySlug(slug: string) {
+  const projects = await getProjects();
+  return projects.find((p: any) => p.slug === slug) || null;
 }
 
 export async function getArticles() {

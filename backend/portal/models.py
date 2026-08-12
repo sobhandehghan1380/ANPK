@@ -249,7 +249,7 @@ class ClientSubscription(models.Model):
     auto_renew = models.BooleanField(default=False, verbose_name="تمدید خودکار")
     canceled_at = models.DateTimeField(blank=True, null=True, verbose_name="تاریخ لغو")
     cancellation_reason = models.TextField(blank=True, null=True, verbose_name="دلیل لغو")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت")
+    created_at = models.DateTimeField(default=timezone.now, verbose_name="تاریخ ثبت")
 
     def __str__(self):
         plan_name = self.plan.name if self.plan else (self.custom_plan_name or 'بدون پلن')

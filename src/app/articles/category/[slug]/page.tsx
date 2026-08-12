@@ -13,8 +13,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const articles = await getArticles();
-  const categoryArticles = articles.filter(a => 
-    a.category.toLowerCase().replace(/\s+/g, '-') === params.slug ||
+  const categoryArticles = articles.filter((a: any) => 
+    a.category?.toLowerCase().replace(/\s+/g, '-') === params.slug ||
     a.category === params.slug
   );
   
@@ -30,8 +30,8 @@ export default async function CategoryArticlesPage({ params }: Props) {
   const articles = await getArticles();
   
   // Filter articles by category slug
-  const categoryArticles = articles.filter(a => {
-    const catSlug = a.category.toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and');
+  const categoryArticles = articles.filter((a: any) => {
+    const catSlug = (a.category || '').toLowerCase().replace(/\s+/g, '-').replace(/&/g, 'and');
     return catSlug === params.slug || a.category === params.slug;
   });
 

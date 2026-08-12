@@ -36,7 +36,7 @@ export default async function SolutionsListPage() {
 
       {/* Solutions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {solutions.map((sol, index) => (
+        {solutions.map((sol: any, index: number) => (
           <ScrollReveal key={sol.id} variant="fade-up" delay={index * 100}>
             <TiltCard className="h-full">
               <Link

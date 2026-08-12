@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Repeat, Calendar, Ban, CheckCircle2, AlertCircle, PlusCircle, User, ShieldClock, Search, Filter, Clock, CreditCard, RefreshCw, PackageCheck, X } from 'lucide-react';
+import { Repeat, Calendar, Ban, CheckCircle2, AlertCircle, PlusCircle, User, Search, Filter, Clock, CreditCard, RefreshCw, PackageCheck, X, ShieldCheck } from 'lucide-react';
 import { getAdminSubscriptions, manageAdminSubscription } from '@/lib/api';
 
 export default function AdminSubscriptionsPage() {
@@ -158,7 +158,7 @@ export default function AdminSubscriptionsPage() {
     } else if (statusFilter === 'expiring') {
       list = list.filter(sub => sub.status === "active" && sub.days_remaining <= 7 && sub.days_remaining >= 0);
     } else if (statusFilter === 'expired') {
-      list = list.filter(sub => !sub.status === "active" || sub.days_remaining < 0);
+      list = list.filter(sub => sub.status !== "active" || sub.days_remaining < 0);
     }
 
     return list;
@@ -322,7 +322,7 @@ export default function AdminSubscriptionsPage() {
         ) : (
           filteredSubs.map((sub: any) => {
             const isExpiringSoon = sub.status === "active" && sub.days_remaining <= 7 && sub.days_remaining >= 0;
-            const isExpired = !sub.status === "active" || sub.days_remaining < 0;
+            const isExpired = sub.status !== "active" || sub.days_remaining < 0;
             
             return (
               <div 
@@ -346,7 +346,7 @@ export default function AdminSubscriptionsPage() {
                     <div>
                       <h3 className="font-bold text-slate-900 dark:text-white">{sub.client_name}</h3>
                       <div className="text-xs text-brand-500 font-bold flex items-center gap-1 mt-1">
-                        <ShieldClock className="w-3 h-3" /> {sub.plan_name}
+                        <ShieldCheck className="w-3 h-3" /> {sub.plan_name}
                       </div>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
