@@ -142,8 +142,8 @@ export default function ProjectBoardPage() {
                   <p className="text-sm text-slate-500 mt-1">شماره قرارداد: <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">{selectedProject.contract_number}</span></p>
                 </div>
                 <div className="px-4 py-2 bg-brand-500/10 border border-brand-500/20 text-brand-500 rounded-xl text-center">
-                  <div className="text-[10px] font-bold">مبلغ قرارداد</div>
-                  <div className="font-mono font-bold">{parseInt(selectedProject.contract_value).toLocaleString()} تومان</div>
+                  <div className="text-[10px] font-bold">پیشرفت کل</div>
+                  <div className="font-mono font-bold">{selectedProject.sprint_progress}%</div>
                 </div>
               </div>
               
@@ -156,7 +156,7 @@ export default function ProjectBoardPage() {
                   <div key={idx} className={`border ${overdue ? 'border-rose-500/50 dark:border-rose-500/50 bg-rose-50/30 dark:bg-rose-900/10' : 'dark:border-slate-800 border-slate-200 bg-slate-50 dark:bg-slate-900/50'} rounded-2xl p-5`}>
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
-                        {phase.progress === 100 ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <CircleDashed className={`w-6 h-6 ${overdue ? 'text-rose-500 animate-pulse' : 'text-brand-500'}`} />}
+                        {progress === 100 ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <CircleDashed className={`w-6 h-6 ${overdue ? 'text-rose-500 animate-pulse' : 'text-brand-500'}`} />}
                         <div>
                           <div className="font-bold text-sm dark:text-white flex items-center gap-2">
                             {phase.title}
@@ -185,10 +185,10 @@ export default function ProjectBoardPage() {
                       <div className="flex-1 space-y-1">
                         <div className="flex justify-between text-[10px] font-bold">
                           <span className="text-slate-500">درصد پیشرفت</span>
-                          <span className={phase.progress === 100 ? "text-emerald-500" : (overdue ? "text-rose-500" : "text-brand-500")}>{phase.progress}%</span>
+                          <span className={progress === 100 ? "text-emerald-500" : (overdue ? "text-rose-500" : "text-brand-500")}>{progress}%</span>
                         </div>
                         <input 
-                          type="range" min="0" max="100" step="5" value={phase.progress}
+                          type="range" min="0" max="100" step="5" value={progress}
                           onChange={(e) => handleUpdatePhase(phase.id, { progress: parseInt(e.target.value), status: parseInt(e.target.value) === 100 ? 'COMPLETED' : 'IN_PROGRESS' })}
                           className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer ${overdue ? 'accent-rose-500' : 'accent-brand-500'}`}
                         />
@@ -196,7 +196,7 @@ export default function ProjectBoardPage() {
                       
                       <select 
                         value={phase.status} 
-                        onChange={(e) => handleUpdatePhase(phase.id, { progress: phase.progress, status: e.target.value })}
+                        onChange={(e) => handleUpdatePhase(phase.id, { progress: progress, status: e.target.value })}
                         className="text-xs p-2 rounded-xl border dark:border-slate-700 border-slate-300 bg-white dark:bg-slate-800 focus:outline-none"
                       >
                         <option value="PENDING">در انتظار</option>
@@ -278,7 +278,7 @@ export default function ProjectBoardPage() {
                   >
                     <option value="">لطفا یک سازمان انتخاب کنید...</option>
                     {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} {c.economic_code ? `(${c.economic_code})` : ''}</option>
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
                 </div>

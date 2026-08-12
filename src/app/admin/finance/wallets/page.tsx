@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { getAdminWallets, topUpClientWallet, adminFetch } from '@/lib/api';
 import { Wallet, PlusCircle, CheckCircle2, DollarSign, History, ShieldCheck, X, Eye, TrendingUp, TrendingDown } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000/api/portal';
+const API_BASE = 'http://127.0.0.1:8000/api/admin';
 
 export default function AdminWalletsPage() {
   const [activeTab, setActiveTab] = useState<'wallets' | 'transactions' | 'sla'>('wallets');

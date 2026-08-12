@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { adminFetch } from '@/lib/api';
 import { Mail, CheckCircle2, Trash2, MailOpen, AlertCircle } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api/portal';
+const API_BASE = 'http://127.0.0.1:8000/api/admin';
 
 export default function AdminMessagesPage() {
   const [messages, setMessages] = useState<any[]>([]);

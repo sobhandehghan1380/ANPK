@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   BookOpen, PlusCircle, CheckCircle2, Eye, Trash2, FolderPlus, Tag,
   Edit, Search, Filter, X, ChevronLeft, ChevronRight, Star, Clock,
-  Archive, AlertCircle, BarChart2, Globe, MessageCircle
+  Archive, AlertCircle, BarChart2, Globe, MessageCircle, Calendar
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -50,8 +50,8 @@ export default function AdminArticlesPage() {
   const loadAll = async () => {
     try {
       const [artList, catList] = await Promise.all([
-        adminFetch(`${API_BASE}/api/portal/admin/articles/`),
-        adminFetch(`${API_BASE}/api/portal/admin/article-categories/`),
+        adminFetch(`${API_BASE}/api/admin/articles/`),
+        adminFetch(`${API_BASE}/api/admin/article-categories/`),
       ]);
       setArticles(artList || []);
       setCategories(catList || []);
@@ -101,7 +101,7 @@ export default function AdminArticlesPage() {
   const handleDeleteArticle = async (id: number, title: string) => {
     if (!confirm(`آیا از حذف مقاله "${title}" اطمینان دارید؟`)) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/articles/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/articles/?id=${id}`, { method: 'DELETE' });
       setSuccessMsg('مقاله با موفقیت حذف شد.');
       loadAll();
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -120,7 +120,7 @@ export default function AdminArticlesPage() {
       const method = editCatId ? 'PUT' : 'POST';
       const body: any = { name: catName, slug: catSlug, description: catDesc };
       if (editCatId) body.id = editCatId;
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/article-categories/`, {
+      const res = await adminFetch(`${API_BASE}/api/admin/article-categories/`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -140,7 +140,7 @@ export default function AdminArticlesPage() {
   const handleDeleteCategory = async (id: number, name: string) => {
     if (!confirm(`آیا از حذف دسته‌بندی "${name}" اطمینان دارید؟`)) return;
     try {
-      await adminFetch(`${API_BASE}/api/portal/admin/article-categories/?id=${id}`, { method: 'DELETE' });
+      await adminFetch(`${API_BASE}/api/admin/article-categories/?id=${id}`, { method: 'DELETE' });
       setSuccessMsg('دسته‌بندی حذف شد.');
       loadAll();
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -195,6 +195,18 @@ export default function AdminArticlesPage() {
           <Link href="/admin/content/comments"
             className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
             <MessageCircle className="w-3.5 h-3.5" /> نظرات کاربران
+          </Link>
+          <Link href="/admin/content/tags"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5" /> برچسب‌ها
+          </Link>
+          <Link href="/admin/content"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            <BarChart2 className="w-3.5 h-3.5" /> آمار وبلاگ
+          </Link>
+          <Link href="/admin/content/scheduled"
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5" /> زمان‌بندی
           </Link>
         </div>
       </div>

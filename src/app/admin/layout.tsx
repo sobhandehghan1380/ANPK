@@ -76,7 +76,8 @@ export default function CategorizedAdminLayout({ children }: { children: React.R
         { href: '/admin/crm/leads', label: 'مدیریت مشتریان (CRM)', icon: Users },
         { href: '/admin/finance/invoices', label: 'امور مالی و حسابداری', icon: Banknote },
         { href: '/admin/projects/board', label: 'پروژه‌ها و پشتیبانی', icon: FolderGit2 },
-        { href: '/admin/content/articles', label: 'محتوا و کاتالوگ', icon: BookOpen },
+        { href: '/admin/blog', label: 'وبلاگ تخصصی', icon: BookOpen },
+        { href: '/admin/content/products', label: 'کاتالوگ محصولات', icon: PackageCheck },
         { href: '/admin/system/site-settings', label: 'تنظیمات و زیرساخت', icon: Settings },
       ]
     }
@@ -131,15 +132,15 @@ export default function CategorizedAdminLayout({ children }: { children: React.R
 
       {/* MAIN CONTAINER */}
       <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-6 py-4 relative z-10 print:p-0 print:m-0 print:max-w-none">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start print:block print:gap-0">
+        <div className="flex gap-4 items-start print:block print:gap-0">
           {/* CATEGORIZED SIDEBAR NAVIGATION */}
-          <aside className={`hidden lg:block print:hidden ${sidebarCollapsed ? 'lg:col-span-1' : 'lg:col-span-4 xl:col-span-3'} space-y-3 sticky top-16 transition-all duration-300`}>
-            <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800/90 backdrop-blur-xl space-y-4 shadow-xl">
+          <aside className={`hidden lg:block print:hidden shrink-0 sticky top-16 transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-[260px]'}`}>
+            <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800/90 backdrop-blur-xl space-y-4 shadow-xl">
               <div className="px-2 py-1 flex items-center justify-between border-b border-slate-800/80 pb-2">
                 {!sidebarCollapsed && (
                   <span className="text-xs font-black text-slate-300 flex items-center gap-1.5">
                     <Activity className="w-4 h-4 text-brand-400" />
-                    ماژول‌های ارشد سیستم:
+                    ماژول‌های ارشد:
                   </span>
                 )}
                 <button
@@ -157,7 +158,7 @@ export default function CategorizedAdminLayout({ children }: { children: React.R
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="جستجوی سریع در ماژول‌ها..."
+                    placeholder="جستجوی سریع..."
                     className="w-full pl-3 pr-9 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 font-medium"
                   />
                 </div>
@@ -227,13 +228,13 @@ export default function CategorizedAdminLayout({ children }: { children: React.R
                 className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white text-xs font-bold transition-all duration-200 border border-rose-500/20"
               >
                 <LogOut className="w-4 h-4 shrink-0" />
-                {!sidebarCollapsed && <span>خروج از پنل</span>}
+                {!sidebarCollapsed && <span>خروج</span>}
               </button>
             </div>
           </aside>
 
           {/* MAIN ADMIN PAGE CONTENT */}
-          <main className={`${sidebarCollapsed ? 'lg:col-span-11' : 'lg:col-span-8 xl:col-span-9'} space-y-4 transition-all duration-300 print:block print:w-full print:m-0 print:p-0`}>
+          <main className="flex-1 min-w-0 space-y-4 transition-all duration-300 print:block print:w-full print:m-0 print:p-0">
             {children}
           </main>
         </div>

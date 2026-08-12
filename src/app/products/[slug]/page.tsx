@@ -43,7 +43,7 @@ export default async function ProductDetailPage({ params }: { params: { slug: st
     'tasisat-negar': '/images/bg/prod_tasisat.jpg',
     nikilink: '/images/bg/prod_nikilink.jpg',
   };
-  const logoImg = productImages[product.slug] || '/images/bg/prod_aira.jpg';
+  const logoImg = product.image_url || productImages[product.slug] || '/images/bg/prod_aira.jpg';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-16 overflow-x-hidden">

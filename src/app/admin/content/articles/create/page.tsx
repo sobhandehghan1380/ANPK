@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { adminFetch } from '@/lib/api';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -8,11 +8,64 @@ import Link from 'next/link';
 import {
   BookOpen, PlusCircle, CheckCircle2, UploadCloud, X, ArrowRight,
   Eye, EyeOff, Globe, Clock, Hash, Search, Share2, Settings,
-  AlertCircle, Sparkles, Calendar, MessageCircle, List, FileText
+  AlertCircle, Sparkles, Calendar, MessageCircle, List, FileText, Save, RotateCcw
 } from 'lucide-react';
 
 const TiptapEditor = dynamic(() => import('@/components/admin/TiptapEditor'), { ssr: false });
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
+// Auto-save hook
+function useAutoSave(key: string, data: any, interval = 30000) {
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Save to localStorage
+  const save = useCallback(() => {
+    try {
+      setIsSaving(true);
+      localStorage.setItem(`autosave_${key}`, JSON.stringify({
+        data,
+        timestamp: new Date().toISOString()
+      }));
+      setLastSaved(new Date());
+      setTimeout(() => setIsSaving(false), 500);
+    } catch (e) {
+      console.error('Auto-save error:', e);
+    }
+  }, [key, data]);
+
+  // Load from localStorage
+  const load = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(`autosave_${key}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Load auto-save error:', e);
+    }
+    return null;
+  }, [key]);
+
+  // Clear saved data
+  const clear = useCallback(() => {
+    localStorage.removeItem(`autosave_${key}`);
+    setLastSaved(null);
+  }, [key]);
+
+  // Auto-save on data change
+  useEffect(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(save, interval);
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [save, interval]);
+
+  return { lastSaved, isSaving, save, load, clear };
+}
 
 // Auto-generate slug from title
 function toSlug(str: string): string {
@@ -102,12 +155,20 @@ function CreateArticleForm() {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Auto-save
+  const autoSaveKey = editId ? `article_edit_${editId}` : 'article_new';
+  const { lastSaved, isSaving, save: triggerAutoSave, load: loadAutoSave, clear: clearAutoSave } = useAutoSave(
+    autoSaveKey,
+    { title, slug, content, summary, tags },
+    30000
+  );
+
   const loadData = async () => {
     try {
-      const catList = await adminFetch(`${API_BASE}/api/portal/admin/article-categories/`);
+      const catList = await adminFetch(`${API_BASE}/api/admin/article-categories/`);
       setCategories(catList || []);
       if (editId) {
-        const artList = await adminFetch(`${API_BASE}/api/portal/admin/articles/`);
+        const artList = await adminFetch(`${API_BASE}/api/admin/articles/`);
         const a = artList?.find((art: any) => art.id.toString() === editId);
         if (a) {
           setTitle(a.title || ''); setSlug(a.slug || ''); setSlugManual(true);
@@ -134,6 +195,39 @@ function CreateArticleForm() {
   };
 
   useEffect(() => { loadData(); }, [editId]);
+
+  // Auto-save restore prompt
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+  const [savedDraft, setSavedDraft] = useState<any>(null);
+
+  useEffect(() => {
+    // Check for saved draft on initial load
+    const saved = loadAutoSave();
+    if (saved && saved.data) {
+      const { title: sTitle, content: sContent, summary: sSummary } = saved.data;
+      // Only prompt if there's meaningful saved content and current fields are empty
+      if ((sTitle || sContent) && !title && !content) {
+        setSavedDraft(saved);
+        setShowRestorePrompt(true);
+      }
+    }
+  }, []); // Only on mount
+
+  const handleRestoreDraft = () => {
+    if (savedDraft?.data) {
+      if (savedDraft.data.title) setTitle(savedDraft.data.title);
+      if (savedDraft.data.content) setContent(savedDraft.data.content);
+      if (savedDraft.data.summary) setSummary(savedDraft.data.summary);
+      if (savedDraft.data.slug) { setSlug(savedDraft.data.slug); setSlugManual(true); }
+      if (savedDraft.data.tags) setTags(savedDraft.data.tags);
+    }
+    setShowRestorePrompt(false);
+  };
+
+  const handleDiscardDraft = () => {
+    clearAutoSave();
+    setShowRestorePrompt(false);
+  };
 
   // Auto-slug from title
   useEffect(() => {
@@ -196,9 +290,10 @@ function CreateArticleForm() {
       if (ogImageFile) fd.append('og_image', ogImageFile);
 
       const method = editId ? 'PUT' : 'POST';
-      const res = await adminFetch(`${API_BASE}/api/portal/admin/articles/`, { method, body: fd });
+      const res = await adminFetch(`${API_BASE}/api/admin/articles/`, { method, body: fd });
       if (res?.message) {
         setSuccessMsg(res.message);
+        clearAutoSave(); // Clear auto-save after successful submit
         setTimeout(() => router.push('/admin/content/articles'), 1500);
       }
     } catch (err: any) {
@@ -251,6 +346,52 @@ function CreateArticleForm() {
           <AlertCircle className="w-4 h-4" /> {errorMsg}
         </div>
       )}
+
+      {/* Auto-save Restore Prompt */}
+      {showRestorePrompt && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-xs font-bold">
+            <Save className="w-4 h-4" />
+            پیش‌نویس ذخیره شده یافت شد
+          </div>
+          <p className="text-[11px] text-slate-400">
+            یک پیش‌نویس ذخیره شده از تاریخ {savedDraft?.timestamp ? new Date(savedDraft.timestamp).toLocaleString('fa-IR') : 'ناموجود'} یافت شد. آیا می‌خواهید آن را بازیابی کنید؟
+          </p>
+          <div className="flex gap-2">
+            <button onClick={handleRestoreDraft} className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold flex items-center gap-1">
+              <RotateCcw className="w-3 h-3" /> بازیابی
+            </button>
+            <button onClick={handleDiscardDraft} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold">
+              حذف پیش‌نویس
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-save Status Bar */}
+      <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border dark:border-slate-800 text-[10px] text-slate-400">
+        <div className="flex items-center gap-2">
+          {isSaving ? (
+            <>
+              <div className="w-3 h-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              <span>در حال ذخیره خودکار...</span>
+            </>
+          ) : lastSaved ? (
+            <>
+              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+              <span>آخرین ذخیره: {lastSaved.toLocaleTimeString('fa-IR')}</span>
+            </>
+          ) : (
+            <>
+              <Save className="w-3 h-3" />
+              <span>ذخیره خودکار فعال (هر ۳۰ ثانیه)</span>
+            </>
+          )}
+        </div>
+        <button onClick={triggerAutoSave} className="text-brand-500 hover:underline flex items-center gap-1">
+          <Save className="w-3 h-3" /> ذخیره دستی
+        </button>
+      </div>
 
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
